@@ -6,18 +6,47 @@ const { users } = require('../database');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'emerx_secret_2024';
 
+// HTML teglarini tozalash (XSS oldini olish)
+function sanitize(str) {
+  return String(str).replace(/[<>&"'`]/g, c => ({
+    '<': '&lt;', '>': '&gt;', '&': '&amp;',
+    '"': '&quot;', "'": '&#x27;', '`': '&#x60;'
+  }[c])).trim();
+}
+
+// Email formatini tekshirish
+function isValidEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
 router.post('/register', async (req, res) => {
   const { username, email, password, lang } = req.body;
   if (!username || !email || !password)
     return res.status(400).json({ error: 'All fields required' });
+
+  // Parol uzunligi: 6–72 belgi (bcrypt 72 dan ko'proq belgini qabul qilmaydi)
   if (password.length < 6)
     return res.status(400).json({ error: 'Password min 6 chars' });
+  if (password.length > 72)
+    return res.status(400).json({ error: 'Password max 72 chars' });
+
+  // Email format tekshiruv
+  if (!isValidEmail(email))
+    return res.status(400).json({ error: 'Invalid email format' });
+
+  // Username: 3–30 belgi, faqat harf/raqam/_ va XSS tozalash
+  const cleanUsername = sanitize(username);
+  if (cleanUsername.length < 3 || cleanUsername.length > 30)
+    return res.status(400).json({ error: 'Username must be 3–30 chars' });
+  if (!/^[a-zA-Z0-9_]+$/.test(username))
+    return res.status(400).json({ error: 'Username: only letters, numbers and _' });
 
   try {
     const hash = await bcrypt.hash(password, 10);
-    const user = await users.insertAsync({ username, email, password: hash, lang: lang || 'uz', created_at: new Date() });
-    const token = jwt.sign({ id: user._id, username, email }, JWT_SECRET, { expiresIn: '7d' });
-    res.json({ token, user: { id: user._id, username, email, lang: lang || 'uz' } });
+    const cleanEmail = email.toLowerCase().trim();
+    const user = await users.insertAsync({ username: cleanUsername, email: cleanEmail, password: hash, lang: lang || 'uz', created_at: new Date() });
+    const token = jwt.sign({ id: user._id, username: cleanUsername, email: cleanEmail }, JWT_SECRET, { expiresIn: '7d' });
+    res.json({ token, user: { id: user._id, username: cleanUsername, email: cleanEmail, lang: lang || 'uz' } });
   } catch (e) {
     if (e.errorType === 'uniqueViolated') {
       res.status(409).json({ error: 'Username or email already exists' });
@@ -32,7 +61,11 @@ router.post('/login', async (req, res) => {
   if (!email || !password)
     return res.status(400).json({ error: 'All fields required' });
 
-  const user = await users.findOneAsync({ email });
+  // Parol juda uzun bo'lsa bcrypt sekinlashadi — tekshiruv
+  if (password.length > 72)
+    return res.status(400).json({ error: 'Invalid credentials' });
+
+  const user = await users.findOneAsync({ email: email.toLowerCase().trim() });
   if (!user) return res.status(401).json({ error: 'Invalid credentials' });
 
   const match = await bcrypt.compare(password, user.password);
