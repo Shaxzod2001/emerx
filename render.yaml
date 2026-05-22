@@ -10,3 +10,5 @@ services:
         value: emerx_2025_kalit_xavfsiz_xyz
       - key: NODE_ENV
         value: production
+      - key: MONGODB_URI
+        sync: false
