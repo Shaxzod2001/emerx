@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: emerx
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: JWT_SECRET
+        value: emerx_2025_kalit_xavfsiz_xyz
+      - key: NODE_ENV
+        value: production
