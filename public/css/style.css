@@ -489,6 +489,14 @@ body {
 }
 @keyframes blink { 50% { opacity: 0; } }
 
+/* ========== LOCKED STATES ========== */
+.course-locked { opacity: 0.65; cursor: not-allowed; filter: grayscale(0.4); }
+.course-locked:hover { transform: none !important; box-shadow: none !important; }
+
+.sidebar-lesson.locked { opacity: 0.5; cursor: not-allowed; }
+.sidebar-lesson.locked:hover { background: transparent !important; }
+.lesson-check.locked { background: var(--bg3) !important; color: var(--text3) !important; border-color: var(--border) !important; }
+
 /* ========== CAPTCHA ========== */
 .captcha-box {
   display: flex; align-items: center; gap: 12px;

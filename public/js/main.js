@@ -247,24 +247,30 @@ async function renderCourses() {
             </div>
             <div class="courses-grid">
               ${lvlCourses.map(c => {
+                const cIdx = state.courses.findIndex(x => x.id === c.id);
+                const unlocked = !state.user || isCourseUnlocked(cIdx);
                 const completed = c.lessons.filter(l => completedIds.has(l.id)).length;
                 const pct = c.lessons.length ? Math.round(completed / c.lessons.length * 100) : 0;
                 return `
-                  <div class="course-card" style="--accent:${c.color};--border-hover:${c.color}" onclick="openCourse('${c.id}')">
-                    <div class="course-icon">${c.icon}</div>
+                  <div class="course-card ${!unlocked ? 'course-locked' : ''}"
+                       style="--accent:${unlocked ? c.color : '#4a5568'};--border-hover:${unlocked ? c.color : '#4a5568'}"
+                       onclick="${unlocked ? `openCourse('${c.id}')` : `showToast('🔒 Avvalgi kursni to\\'liq bajaring!')`}">
+                    <div class="course-icon">${unlocked ? c.icon : '🔒'}</div>
                     <h3>${c.title[state.lang]}</h3>
                     <p>${c.desc[state.lang]}</p>
                     <div class="course-meta">
                       <span>📚 ${c.lessonCount}${t('lessons_count')}</span>
                       <span>⏱️ ${c.duration[state.lang]}</span>
                     </div>
-                    ${state.user ? `
+                    ${state.user && unlocked ? `
                       <div class="progress-bar-wrap">
                         <div class="progress-bar" style="width:${pct}%;background:${c.color}"></div>
                       </div>
                       <div style="font-size:0.8rem;color:var(--text2);margin-bottom:12px">${completed}/${c.lessons.length} dars (${pct}%)</div>
                     ` : ''}
-                    <button class="btn-sm" style="background:${c.color}">${pct === 100 ? t('completed') : pct > 0 ? t('continue_course') : t('start_course')}</button>
+                    <button class="btn-sm" style="background:${unlocked ? c.color : '#4a5568'};opacity:${unlocked ? 1 : 0.6}">
+                      ${!unlocked ? '🔒 ' + t('locked') : pct === 100 ? t('completed') : pct > 0 ? t('continue_course') : t('start_course')}
+                    </button>
                   </div>
                 `;
               }).join('')}
@@ -280,14 +286,44 @@ function openCourse(courseId) {
   if (!state.user) { showPage('auth'); return; }
   const course = state.courses.find(c => c.id === courseId);
   if (!course) return;
+  const courseIdx = state.courses.findIndex(c => c.id === courseId);
+  if (!isCourseUnlocked(courseIdx)) {
+    showToast('🔒 Avvalgi kursni to\'liq bajaring!');
+    return;
+  }
   state.currentCourse = course;
   const completedIds = new Set(state.progress.map(p => p.lesson_id));
-  const firstNotDone = course.lessons.find(l => !completedIds.has(l.id)) || course.lessons[0];
-  openLesson(course, firstNotDone);
+  // Birinchi qulflangan (yoki birinchi) darsni oching
+  const firstUnlocked = course.lessons.find((l, i) => isLessonUnlocked(course, i) && !completedIds.has(l.id))
+    || course.lessons.find((l, i) => isLessonUnlocked(course, i))
+    || course.lessons[0];
+  openLesson(course, firstUnlocked);
+}
+
+// ==================== KETMA-KETLIK MANTIG'I ====================
+function isCourseUnlocked(courseIdx) {
+  if (courseIdx <= 0) return true;
+  const prev = state.courses[courseIdx - 1];
+  if (!prev) return true;
+  const completedIds = new Set(state.progress.map(p => p.lesson_id));
+  return prev.lessons.every(l => completedIds.has(l.id));
+}
+
+function isLessonUnlocked(course, lessonIdx) {
+  const completedIds = new Set(state.progress.map(p => p.lesson_id));
+  const courseIdx = state.courses.findIndex(c => c.id === course.id);
+  if (!isCourseUnlocked(courseIdx)) return false;
+  if (lessonIdx === 0) return true;
+  return completedIds.has(course.lessons[lessonIdx - 1].id);
 }
 
 // ==================== LESSON PAGE ====================
 function openLesson(course, lesson) {
+  const lessonIdx = course.lessons.findIndex(l => l.id === lesson.id);
+  if (!isLessonUnlocked(course, lessonIdx)) {
+    showToast('🔒 Avvalgi darsni bajaring!');
+    return;
+  }
   state.currentCourse = course;
   state.currentLesson = lesson;
   showPage('lesson');
@@ -315,11 +351,12 @@ async function renderLessonPage() {
         ${course.lessons.map((l, i) => {
           const done = completedIds.has(l.id);
           const active = l.id === lesson.id;
+          const unlocked = isLessonUnlocked(course, i);
           return `
-            <div class="sidebar-lesson ${active ? 'active' : ''} ${done ? 'completed' : ''}"
-                 onclick="openLesson(state.currentCourse, state.currentCourse.lessons[${i}])">
-              <div class="lesson-check ${done ? 'done' : ''}">
-                ${done ? '✓' : i + 1}
+            <div class="sidebar-lesson ${active ? 'active' : ''} ${done ? 'completed' : ''} ${!unlocked ? 'locked' : ''}"
+                 onclick="${unlocked ? `openLesson(state.currentCourse, state.currentCourse.lessons[${i}])` : `showToast('🔒 Avvalgi darsni bajaring!')`}">
+              <div class="lesson-check ${done ? 'done' : ''} ${!unlocked ? 'locked' : ''}">
+                ${done ? '✓' : !unlocked ? '🔒' : i + 1}
               </div>
               <span>${l.title[state.lang]}</span>
             </div>
@@ -340,9 +377,13 @@ async function renderLessonPage() {
               ${t('mark_complete')}
             </button>
           ` : `<span style="color:var(--green);font-weight:700">✅ ${t('completed')}</span>`}
-          ${nextLesson ? `
+          ${nextLesson && completedIds.has(lesson.id) ? `
             <button class="btn btn-secondary" onclick="openLesson(state.currentCourse, state.currentCourse.lessons[${lessonIdx + 1}])">
               ${t('next_lesson')}
+            </button>
+          ` : nextLesson && !completedIds.has(lesson.id) ? `
+            <button class="btn btn-secondary" style="opacity:0.4;cursor:not-allowed" disabled title="Avval darsni bajaring">
+              🔒 ${t('next_lesson')}
             </button>
           ` : ''}
         </div>
