@@ -1,3 +1,12 @@
+// ==================== ERROR HANDLER ====================
+window.onerror = function(msg, src, line, col, err) {
+  document.body.insertAdjacentHTML('afterbegin',
+    `<div style="position:fixed;top:64px;left:0;right:0;background:#ff4444;color:#fff;padding:12px 20px;z-index:9999;font-family:monospace;font-size:13px">
+      ❌ JS Xato: ${msg} (${src?.split('/').pop()}:${line}:${col})
+    </div>`
+  );
+};
+
 // ==================== STATE ====================
 const API = '/api';
 let state = {
@@ -615,4 +624,13 @@ async function init() {
   else showPage('home');
 }
 
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('DOMContentLoaded', () => {
+  init().catch(err => {
+    console.error('Init xatosi:', err);
+    document.body.insertAdjacentHTML('afterbegin',
+      `<div style="position:fixed;top:64px;left:0;right:0;background:#ff4444;color:#fff;padding:12px 20px;z-index:9999;font-family:monospace;font-size:13px">
+        ❌ Init xatosi: ${err.message}
+      </div>`
+    );
+  });
+});
