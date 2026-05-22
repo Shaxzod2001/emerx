@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EmerX — Kiberxavfsizlik Akademiyasi</title>
+  <meta name="description" content="EmerX — Kiberxavfsizlikni noldan senior darajagacha o'rganing">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+  <!-- ========== NAVBAR ========== -->
+  <nav class="navbar">
+    <a class="logo" onclick="showPage('home')" style="cursor:pointer">
+      <div class="logo-icon">🛡️</div>
+      EmerX
+    </a>
+
+    <div class="lang-switcher">
+      <button class="lang-btn active" data-lang="uz">UZ</button>
+      <button class="lang-btn" data-lang="ru">RU</button>
+      <button class="lang-btn" data-lang="en">EN</button>
+    </div>
+
+    <div class="nav-links">
+      <button class="nav-btn nav-btn-ghost" id="nav-home">Bosh sahifa</button>
+      <button class="nav-btn nav-btn-ghost" id="nav-courses">Kurslar</button>
+
+      <!-- Guest -->
+      <div id="nav-auth" style="display:flex;gap:8px;align-items:center">
+        <button class="nav-btn nav-btn-ghost" id="nav-login">Kirish</button>
+        <button class="nav-btn nav-btn-primary" id="nav-register">Ro'yxat</button>
+      </div>
+
+      <!-- User -->
+      <div id="nav-user" style="display:none;gap:8px;align-items:center">
+        <button class="nav-btn nav-btn-ghost" id="nav-dashboard">Dashboard</button>
+        <span id="nav-username" style="color:var(--green);font-weight:700;font-size:0.9rem"></span>
+        <button class="nav-btn nav-btn-ghost" id="nav-logout" style="color:var(--red)">Chiqish</button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ========== PAGES ========== -->
+
+  <!-- HOME -->
+  <div class="page active" id="page-home"></div>
+
+  <!-- COURSES -->
+  <div class="page" id="page-courses"></div>
+
+  <!-- LESSON -->
+  <div class="page" id="page-lesson"></div>
+
+  <!-- DASHBOARD -->
+  <div class="page" id="page-dashboard"></div>
+
+  <!-- AUTH -->
+  <div class="page" id="page-auth" data-tab="login"></div>
+
+  <!-- TOAST -->
+  <div class="toast" id="toast"></div>
+
+  <script src="/js/i18n.js"></script>
+  <script src="/js/main.js"></script>
+</body>
+</html>
