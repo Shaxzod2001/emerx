@@ -19,10 +19,35 @@ function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
+// CAPTCHA: matematik savol + imzolangan token
+router.get('/captcha', (req, res) => {
+  const a = Math.floor(Math.random() * 15) + 1;
+  const b = Math.floor(Math.random() * 15) + 1;
+  const ops = [
+    { q: `${a} + ${b}`, ans: a + b },
+    { q: `${a + b} - ${b}`, ans: a },
+    { q: `${a} × ${b > 5 ? 2 : b}`, ans: a * (b > 5 ? 2 : b) },
+  ];
+  const op = ops[Math.floor(Math.random() * ops.length)];
+  const token = jwt.sign({ answer: op.ans }, JWT_SECRET, { expiresIn: '10m' });
+  res.json({ token, question: `${op.q} = ?` });
+});
+
 router.post('/register', async (req, res) => {
-  const { username, email, password, lang } = req.body;
+  const { username, email, password, lang, captchaToken, captchaAnswer } = req.body;
   if (!username || !email || !password)
     return res.status(400).json({ error: 'All fields required' });
+
+  // CAPTCHA tekshiruv
+  if (!captchaToken || captchaAnswer === undefined)
+    return res.status(400).json({ error: 'CAPTCHA required' });
+  try {
+    const decoded = jwt.verify(captchaToken, JWT_SECRET);
+    if (parseInt(captchaAnswer) !== decoded.answer)
+      return res.status(400).json({ error: 'CAPTCHA noto\'g\'ri, qaytadan urinib ko\'ring' });
+  } catch {
+    return res.status(400).json({ error: 'CAPTCHA muddati o\'tdi, sahifani yangilang' });
+  }
 
   // Parol uzunligi: 6–72 belgi (bcrypt 72 dan ko'proq belgini qabul qilmaydi)
   if (password.length < 6)

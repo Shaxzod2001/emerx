@@ -63,10 +63,10 @@ async function login(email, password) {
   return { ok: false, error: res.error };
 }
 
-async function register(username, email, password, lang) {
+async function register(username, email, password, lang, captchaToken, captchaAnswer) {
   const res = await api('/auth/register', {
     method: 'POST',
-    body: JSON.stringify({ username, email, password, lang })
+    body: JSON.stringify({ username, email, password, lang, captchaToken, captchaAnswer })
   });
   if (res.token) {
     state.token = res.token;
@@ -496,6 +496,28 @@ async function renderDashboard() {
   `;
 }
 
+// ==================== CAPTCHA ====================
+let captchaToken = '';
+
+async function loadCaptcha() {
+  try {
+    const data = await api('/auth/captcha');
+    captchaToken = data.token;
+    const el = document.getElementById('captcha-question');
+    if (el) el.textContent = data.question;
+  } catch (e) {
+    console.error('Captcha yuklanmadi:', e);
+  }
+}
+
+async function refreshCaptcha() {
+  const el = document.getElementById('captcha-question');
+  if (el) el.textContent = '...';
+  const inp = document.getElementById('captcha-ans');
+  if (inp) inp.value = '';
+  await loadCaptcha();
+}
+
 // ==================== AUTH PAGE ====================
 function renderAuth(tab = 'login') {
   const el = document.getElementById('page-auth');
@@ -548,6 +570,14 @@ function renderAuth(tab = 'login') {
                 <option value="en" ${state.lang==='en'?'selected':''}>🇬🇧 English</option>
               </select>
             </div>
+            <div class="form-group">
+              <label class="form-label">🤖 Robot emasligingizni isbotlang</label>
+              <div class="captcha-box">
+                <span class="captcha-question" id="captcha-question">...</span>
+                <button type="button" class="captcha-refresh" onclick="refreshCaptcha()" title="Yangi savol">🔄</button>
+              </div>
+              <input type="number" id="captcha-ans" class="form-input" placeholder="Javob..." required style="margin-top:8px">
+            </div>
             <button type="submit" class="btn btn-primary btn-full">${t('btn_register')}</button>
           </form>
           <p class="auth-switch">${t('has_account')} <a onclick="switchAuthTab('login')">${t('login_here')}</a></p>
@@ -555,6 +585,8 @@ function renderAuth(tab = 'login') {
       </div>
     </div>
   `;
+
+  if (activeTab === 'register') loadCaptcha();
 }
 
 function switchAuthTab(tab) {
@@ -580,11 +612,17 @@ async function handleRegister(e) {
   const email = document.getElementById('reg-email').value;
   const pass = document.getElementById('reg-pass').value;
   const lang = document.getElementById('reg-lang').value;
-  const res = await register(username, email, pass, lang);
+  const captchaAnswer = document.getElementById('captcha-ans').value;
+
+  const res = await register(username, email, pass, lang, captchaToken, captchaAnswer);
   if (res.ok) {
     showPage('dashboard');
   } else {
     showAuthError(res.error);
+    // Noto'g'ri CAPTCHA bo'lsa — yangi savol yuklash
+    if (res.error && res.error.toLowerCase().includes('captcha')) {
+      await refreshCaptcha();
+    }
   }
 }
 

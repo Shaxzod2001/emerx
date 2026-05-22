@@ -489,6 +489,23 @@ body {
 }
 @keyframes blink { 50% { opacity: 0; } }
 
+/* ========== CAPTCHA ========== */
+.captcha-box {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 14px 16px;
+}
+.captcha-question {
+  font-size: 1.3rem; font-weight: 800; color: var(--green);
+  letter-spacing: 2px; font-family: monospace; flex: 1;
+}
+.captcha-refresh {
+  background: none; border: none; cursor: pointer;
+  font-size: 1.1rem; color: var(--text2); padding: 4px;
+  border-radius: 6px; transition: all 0.2s;
+}
+.captcha-refresh:hover { background: var(--bg); color: var(--green); transform: rotate(180deg); }
+
 /* ========== RESPONSIVE ========== */
 @media (max-width: 768px) {
   .navbar { padding: 0 16px; }
