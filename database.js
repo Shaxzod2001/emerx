@@ -3,18 +3,33 @@ const { MongoClient, ObjectId } = require('mongodb');
 const MONGODB_URI = process.env.MONGODB_URI;
 
 let dbInstance = null;
-let clientInstance = null;
+let connectingPromise = null;  // parallel ulanish muammosini oldini olish
 
 async function getDb() {
   if (dbInstance) return dbInstance;
-  clientInstance = new MongoClient(MONGODB_URI, {
-    serverSelectionTimeoutMS: 10000,
-    connectTimeoutMS: 10000,
-  });
-  await clientInstance.connect();
-  dbInstance = clientInstance.db('emerx');
-  console.log('✅ MongoDB Atlas ga ulandi');
-  return dbInstance;
+
+  // Agar ulanish jarayoni ketayotgan bo'lsa — kutib turamiz
+  if (connectingPromise) return connectingPromise;
+
+  connectingPromise = (async () => {
+    try {
+      const client = new MongoClient(MONGODB_URI, {
+        serverSelectionTimeoutMS: 15000,
+        connectTimeoutMS: 15000,
+        maxPoolSize: 10,
+      });
+      await client.connect();
+      dbInstance = client.db('emerx');
+      console.log('✅ MongoDB Atlas ga ulandi');
+      return dbInstance;
+    } catch (e) {
+      connectingPromise = null; // xato bo'lsa — qaytadan urinishga ruxsat
+      console.error('❌ MongoDB ulanish xatosi:', e.message);
+      throw e;
+    }
+  })();
+
+  return connectingPromise;
 }
 
 // NeDB API bilan moslik — route fayllarida hech narsa o'zgarmaydi

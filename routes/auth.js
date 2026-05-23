@@ -74,9 +74,10 @@ router.post('/register', async (req, res) => {
     res.json({ token, user: { id: user._id, username: cleanUsername, email: cleanEmail, lang: lang || 'uz' } });
   } catch (e) {
     if (e.errorType === 'uniqueViolated') {
-      res.status(409).json({ error: 'Username or email already exists' });
+      res.status(409).json({ error: 'Bu username yoki email allaqachon mavjud' });
     } else {
-      res.status(500).json({ error: 'Server error' });
+      console.error('❌ Register xatosi:', e.message, e.code, e.stack?.split('\n')[0]);
+      res.status(500).json({ error: 'Server xatosi: ' + (e.message || 'noma\'lum') });
     }
   }
 });
