@@ -1,4 +1,10 @@
 require('dotenv').config(); // .env faylini yuklash (lokal ishlab chiqish uchun)
+
+// Render + Atlas TLS moslik uchun (SSL alert 80 xatosi)
+if (process.env.NODE_ENV !== 'development') {
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+}
+
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
