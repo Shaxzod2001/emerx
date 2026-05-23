@@ -1,61 +1,18 @@
 /**
  * EmerX Database — aqlli adapter
  *
- * Production (Render):  MONGODB_URI bor → MongoDB Atlas
- * Local (MONGODB_URI yo'q yoki Atlas ulanmasa) → NeDB (fayl bazasi)
+ * 1-ustuvor: MongoDB Atlas (agar MONGODB_URI bor va ulansa)
+ * 2-ustuvor: NeDB (lokal fayl bazasi — Atlas ishlamasa yoki USE_LOCAL_DB=true)
+ *
+ * Render da Atlas ulanmasa avtomatik NeDB ga tushadi (ma'lumotlar sessiya davomida saqlanadi)
  */
 require('dotenv').config();
 
 const MONGODB_URI = process.env.MONGODB_URI;
-const USE_LOCAL_DB = !MONGODB_URI || process.env.USE_LOCAL_DB === 'true';
+const FORCE_LOCAL = process.env.USE_LOCAL_DB === 'true';
+const USE_LOCAL_DB = FORCE_LOCAL || !MONGODB_URI;
 
-// ==================== MONGODB ATLAS ====================
-let dbInstance = null;
-let connectingPromise = null;
-
-async function getDb() {
-  if (dbInstance) return dbInstance;
-  if (connectingPromise) return connectingPromise;
-
-  connectingPromise = (async () => {
-    try {
-      const { MongoClient } = require('mongodb');
-      const maskedUri = MONGODB_URI
-        ? MONGODB_URI.replace(/:([^:@]+)@/, ':***@')
-        : '(yo\'q)';
-      console.log(`🔗 MongoDB Atlas ulanilmoqda: ${maskedUri}`);
-
-      const client = new MongoClient(MONGODB_URI, {
-        serverSelectionTimeoutMS: 5000,
-        connectTimeoutMS: 5000,
-        socketTimeoutMS: 10000,
-        maxPoolSize: 10,
-        tls: true,
-        tlsAllowInvalidCertificates: true,   // Render SSL workaround
-        tlsAllowInvalidHostnames: true,
-      });
-      await client.connect();
-      dbInstance = client.db('emerx');
-      console.log('✅ MongoDB Atlas ga ulandi');
-      return dbInstance;
-    } catch (e) {
-      connectingPromise = null;
-      const hint = e.message.includes('ENOTFOUND') || e.message.includes('getaddrinfo')
-        ? '→ DNS xatosi: MONGODB_URI noto\'g\'ri yoki tarmoq yo\'q'
-        : e.message.includes('Authentication')
-        ? '→ Autentifikatsiya xatosi: username/parol noto\'g\'ri'
-        : e.message.includes('timed out') || e.message.includes('ETIMEDOUT')
-        ? '→ Timeout: Atlas Network Access → 0.0.0.0/0 qo\'shing'
-        : '→ ' + e.message;
-      console.error(`❌ MongoDB ulanish xatosi: ${hint}`);
-      throw new Error(`MongoDB ulanolmadi: ${hint}`);
-    }
-  })();
-
-  return connectingPromise;
-}
-
-// ==================== NEDB (LOKAL) ====================
+// ==================== NEDB ADAPTER ====================
 function makeNedbCollection(name, indexes = []) {
   const Datastore = require('@seald-io/nedb');
   const path = require('path');
@@ -69,7 +26,6 @@ function makeNedbCollection(name, indexes = []) {
     autoload: true,
   });
 
-  // Indekslar
   indexes.forEach(({ fieldName, unique }) => {
     db.ensureIndex({ fieldName, unique: !!unique }, () => {});
   });
@@ -114,9 +70,55 @@ function makeNedbCollection(name, indexes = []) {
   };
 }
 
-// ==================== MONGODB KOLLEKSIYA ====================
+// ==================== MONGODB ATLAS ADAPTER ====================
+let dbInstance = null;
+let connectingPromise = null;
+
+async function getDb() {
+  if (dbInstance) return dbInstance;
+  if (connectingPromise) return connectingPromise;
+
+  connectingPromise = (async () => {
+    try {
+      const { MongoClient } = require('mongodb');
+      const maskedUri = MONGODB_URI
+        ? MONGODB_URI.replace(/:([^:@]+)@/, ':***@')
+        : '(yo\'q)';
+      console.log(`🔗 MongoDB Atlas ulanilmoqda: ${maskedUri}`);
+
+      const client = new MongoClient(MONGODB_URI, {
+        serverSelectionTimeoutMS: 5000,
+        connectTimeoutMS: 5000,
+        socketTimeoutMS: 10000,
+        maxPoolSize: 10,
+        tls: true,
+        tlsAllowInvalidCertificates: true,
+        tlsAllowInvalidHostnames: true,
+      });
+      await client.connect();
+      dbInstance = client.db('emerx');
+      console.log('✅ MongoDB Atlas ga ulandi');
+      return dbInstance;
+    } catch (e) {
+      connectingPromise = null;
+      const hint = e.message.includes('ENOTFOUND') || e.message.includes('getaddrinfo')
+        ? '→ DNS xatosi: MONGODB_URI noto\'g\'ri'
+        : e.message.includes('Authentication')
+        ? '→ Autentifikatsiya xatosi: login/parol noto\'g\'ri'
+        : e.message.includes('timed out') || e.message.includes('ETIMEDOUT')
+        ? '→ Atlas Network Access → 0.0.0.0/0 qo\'shing'
+        : e.message.includes('SSL') || e.message.includes('ssl')
+        ? '→ SSL/TLS xatosi: Atlas Network Access → 0.0.0.0/0 qo\'shing'
+        : '→ ' + e.message;
+      console.error(`❌ MongoDB Atlas xatosi: ${hint}`);
+      throw new Error(hint);
+    }
+  })();
+
+  return connectingPromise;
+}
+
 function makeMongoCollection(name, indexes = []) {
-  // Indekslarni server start-da yaratish
   getDb().then(db => {
     indexes.forEach(({ fieldName, unique }) => {
       db.collection(name)
@@ -163,24 +165,64 @@ function makeMongoCollection(name, indexes = []) {
   };
 }
 
-// ==================== ADAPTERLARNI TANLASH ====================
-const makeCollection = USE_LOCAL_DB ? makeNedbCollection : makeMongoCollection;
+// ==================== SMART FALLBACK ADAPTER ====================
+// Atlas ulanmasa NeDB ga avtomatik tushadi
 
-if (USE_LOCAL_DB) {
-  console.log('📁 NeDB (lokal fayl bazasi) ishlatilmoqda — data/ papkasi');
-} else {
-  console.log('☁️  MongoDB Atlas ga ulanilmoqda...');
+let atlasWorking = null; // null=test qilinmagan, true=ishlaydi, false=ishlamaydi
+
+async function checkAtlas() {
+  if (atlasWorking !== null) return atlasWorking;
+  try {
+    await getDb();
+    atlasWorking = true;
+    return true;
+  } catch {
+    atlasWorking = false;
+    console.warn('⚠️  Atlas ulanmadi → NeDB ishlatilmoqda');
+    console.warn('   (Render da ma\'lumotlar sessiya davomida saqlanadi)');
+    console.warn('   Atlas Network Access → 0.0.0.0/0 qo\'shib muammoni hal qiling');
+    return false;
+  }
 }
 
-const users = makeCollection('users', [
-  { fieldName: 'email', unique: true },
-  { fieldName: 'username', unique: true },
-]);
+function makeSmartCollection(name, indexes = []) {
+  const mongo = makeMongoCollection(name, indexes);
+  const nedb = makeNedbCollection(name, indexes);
 
-const progress = makeCollection('progress', [
-  { fieldName: 'user_lesson', unique: true },
-]);
+  async function pick() {
+    const ok = await checkAtlas();
+    return ok ? mongo : nedb;
+  }
 
-const quizResults = makeCollection('quiz_results');
+  return {
+    async insertAsync(doc)         { return (await pick()).insertAsync(doc); },
+    async findOneAsync(query)      { return (await pick()).findOneAsync(query); },
+    async findAsync(query)         { return (await pick()).findAsync(query); },
+    async updateAsync(query, upd)  { return (await pick()).updateAsync(query, upd); },
+    async countAsync(query)        { return (await pick()).countAsync(query); },
+    ensureIndex(opts, cb)          { nedb.ensureIndex(opts, cb); },
+  };
+}
 
-module.exports = { users, progress, quizResults, getDb: USE_LOCAL_DB ? null : getDb };
+// ==================== EKSPORT ====================
+let users, progress, quizResults;
+
+if (USE_LOCAL_DB) {
+  console.log('📁 NeDB (lokal) ishlatilmoqda — data/ papkasi');
+  users       = makeNedbCollection('users',    [{ fieldName: 'email', unique: true }, { fieldName: 'username', unique: true }]);
+  progress    = makeNedbCollection('progress', [{ fieldName: 'user_lesson', unique: true }]);
+  quizResults = makeNedbCollection('quiz_results');
+} else {
+  console.log('☁️  MongoDB Atlas sinab ko\'rilmoqda, muvaffaqiyatsiz bo\'lsa NeDB...');
+  users       = makeSmartCollection('users',    [{ fieldName: 'email', unique: true }, { fieldName: 'username', unique: true }]);
+  progress    = makeSmartCollection('progress', [{ fieldName: 'user_lesson', unique: true }]);
+  quizResults = makeSmartCollection('quiz_results');
+}
+
+module.exports = {
+  users,
+  progress,
+  quizResults,
+  getDb: USE_LOCAL_DB ? null : getDb,
+  checkAtlas: USE_LOCAL_DB ? null : checkAtlas,
+};

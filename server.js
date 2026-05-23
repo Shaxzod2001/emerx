@@ -24,23 +24,31 @@ app.use('/api/leaderboard', require('./routes/leaderboard'));
 
 // Health check — DB ulanish holati
 app.get('/api/health', async (req, res) => {
-  const { getDb } = require('./database');
-  const info = {
-    status: 'ok',
-    db: process.env.USE_LOCAL_DB === 'true' || !process.env.MONGODB_URI ? 'nedb' : 'mongodb',
-    time: new Date().toISOString(),
-  };
-  if (getDb) {
+  const { getDb, checkAtlas } = require('./database');
+  const isLocal = process.env.USE_LOCAL_DB === 'true' || !process.env.MONGODB_URI;
+  const info = { status: 'ok', time: new Date().toISOString() };
+
+  if (isLocal) {
+    info.db = 'nedb-local';
+    info.dbStatus = 'ok';
+  } else if (checkAtlas) {
     try {
-      await getDb();
-      info.dbStatus = 'connected';
+      const ok = await checkAtlas();
+      if (ok) {
+        info.db = 'mongodb-atlas';
+        info.dbStatus = 'connected';
+      } else {
+        info.db = 'nedb-fallback';
+        info.dbStatus = 'atlas-unreachable';
+        info.hint = 'Atlas Network Access → 0.0.0.0/0 qo\'shing';
+        info.status = 'degraded';
+      }
     } catch (e) {
+      info.db = 'nedb-fallback';
       info.dbStatus = 'error';
       info.dbError = e.message;
       info.status = 'degraded';
     }
-  } else {
-    info.dbStatus = 'nedb-local';
   }
   res.json(info);
 });
