@@ -22,6 +22,29 @@ app.use('/api/courses', require('./routes/courses'));
 app.use('/api/progress', require('./routes/progress'));
 app.use('/api/leaderboard', require('./routes/leaderboard'));
 
+// Health check — DB ulanish holati
+app.get('/api/health', async (req, res) => {
+  const { getDb } = require('./database');
+  const info = {
+    status: 'ok',
+    db: process.env.USE_LOCAL_DB === 'true' || !process.env.MONGODB_URI ? 'nedb' : 'mongodb',
+    time: new Date().toISOString(),
+  };
+  if (getDb) {
+    try {
+      await getDb();
+      info.dbStatus = 'connected';
+    } catch (e) {
+      info.dbStatus = 'error';
+      info.dbError = e.message;
+      info.status = 'degraded';
+    }
+  } else {
+    info.dbStatus = 'nedb-local';
+  }
+  res.json(info);
+});
+
 // Noto'g'ri API yo'li — JSON qaytarsin (HTML emas)
 app.use('/api', (req, res) => {
   res.status(404).json({ error: 'API yo\'li topilmadi' });

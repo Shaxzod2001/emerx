@@ -20,9 +20,15 @@ async function getDb() {
   connectingPromise = (async () => {
     try {
       const { MongoClient } = require('mongodb');
+      const maskedUri = MONGODB_URI
+        ? MONGODB_URI.replace(/:([^:@]+)@/, ':***@')
+        : '(yo\'q)';
+      console.log(`🔗 MongoDB Atlas ulanilmoqda: ${maskedUri}`);
+
       const client = new MongoClient(MONGODB_URI, {
-        serverSelectionTimeoutMS: 8000,
-        connectTimeoutMS: 8000,
+        serverSelectionTimeoutMS: 5000,
+        connectTimeoutMS: 5000,
+        socketTimeoutMS: 10000,
         maxPoolSize: 10,
       });
       await client.connect();
@@ -31,8 +37,15 @@ async function getDb() {
       return dbInstance;
     } catch (e) {
       connectingPromise = null;
-      console.error('❌ MongoDB ulanish xatosi:', e.message);
-      throw e;
+      const hint = e.message.includes('ENOTFOUND') || e.message.includes('getaddrinfo')
+        ? '→ DNS xatosi: MONGODB_URI noto\'g\'ri yoki tarmoq yo\'q'
+        : e.message.includes('Authentication')
+        ? '→ Autentifikatsiya xatosi: username/parol noto\'g\'ri'
+        : e.message.includes('timed out') || e.message.includes('ETIMEDOUT')
+        ? '→ Timeout: Atlas Network Access → 0.0.0.0/0 qo\'shing'
+        : '→ ' + e.message;
+      console.error(`❌ MongoDB ulanish xatosi: ${hint}`);
+      throw new Error(`MongoDB ulanolmadi: ${hint}`);
     }
   })();
 
