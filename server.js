@@ -28,6 +28,39 @@ app.use('/api/courses', require('./routes/courses'));
 app.use('/api/progress', require('./routes/progress'));
 app.use('/api/leaderboard', require('./routes/leaderboard'));
 
+// Diagnostika — Node.js versiyasi va Atlas xato
+app.get('/api/diag', async (req, res) => {
+  const crypto = require('crypto');
+  const info = {
+    node: process.version,
+    openssl: crypto.constants ? process.versions.openssl : 'unknown',
+    platform: process.platform,
+    mongoUri: process.env.MONGODB_URI
+      ? process.env.MONGODB_URI.replace(/:([^:@]+)@/, ':***@').substring(0, 60) + '...'
+      : 'YO\'Q!',
+    tlsReject: process.env.NODE_TLS_REJECT_UNAUTHORIZED,
+  };
+
+  // Atlas ga to'g'ridan-to'g'ri ulanib xatoni ko'rish
+  try {
+    const { MongoClient } = require('mongodb');
+    const client = new MongoClient(process.env.MONGODB_URI, {
+      serverSelectionTimeoutMS: 6000,
+      connectTimeoutMS: 6000,
+      tls: true,
+      tlsAllowInvalidCertificates: true,
+      tlsAllowInvalidHostnames: true,
+    });
+    await client.connect();
+    await client.close();
+    info.atlasTest = 'OK - ulandi!';
+  } catch (e) {
+    info.atlasTest = 'XATO: ' + e.message.substring(0, 200);
+  }
+
+  res.json(info);
+});
+
 // Health check — DB ulanish holati
 app.get('/api/health', async (req, res) => {
   const { getDb, checkAtlas } = require('./database');
