@@ -950,3 +950,121 @@ body {
   .admin-table td:nth-child(6) { display: none; }
 }
 
+/* Admin Tabs */
+.admin-tabs {
+  display: flex;
+  gap: 4px;
+  margin: 20px 0 16px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0;
+}
+.admin-tab-btn {
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  color: var(--muted);
+  padding: 10px 20px;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  border-radius: 8px 8px 0 0;
+  margin-bottom: -1px;
+}
+.admin-tab-btn:hover { color: var(--text); background: var(--surface); }
+.admin-tab-btn.active { color: var(--green); border-bottom-color: var(--green); background: var(--surface); }
+
+/* Admin Course Cards */
+.admin-course-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+.admin-course-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.admin-course-card-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.admin-course-icon {
+  font-size: 1.8rem;
+  line-height: 1;
+}
+.admin-lesson-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  gap: 8px;
+}
+.admin-lesson-row:last-child { border-bottom: none; }
+
+/* Admin Form */
+.admin-course-form-wrap { margin-bottom: 20px; }
+.admin-form-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+}
+.admin-form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.admin-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.admin-form-group label {
+  font-size: 0.82rem;
+  color: var(--muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.admin-form-group input,
+.admin-form-group textarea,
+.admin-form-group select {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 8px 12px;
+  font-size: 0.9rem;
+  transition: border-color 0.2s;
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+}
+.admin-form-group input:focus,
+.admin-form-group textarea:focus,
+.admin-form-group select:focus {
+  outline: none;
+  border-color: var(--green);
+}
+.admin-form-section-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text2);
+  margin: 14px 0 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+@media (max-width: 600px) {
+  .admin-form-row { grid-template-columns: 1fr; }
+  .admin-course-card-header { flex-direction: column; align-items: flex-start; }
+}
+

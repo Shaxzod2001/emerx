@@ -12,7 +12,7 @@ const API = '/api';
 let state = {
   user: null,
   token: localStorage.getItem('emerx_token'),
-  lang: localStorage.getItem('emerx_lang') || 'uz',
+  lang: localStorage.getItem('emerx_lang') || 'ru',
   courses: [],
   progress: [],
   currentCourse: null,
@@ -149,6 +149,18 @@ function setLang(lang) {
 function updateNavbar() {
   const navAuth = document.getElementById('nav-auth');
   const navUser = document.getElementById('nav-user');
+
+  // Barcha navbar matnlarini til bilan yangilash
+  const setText = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+  setText('nav-home',        '🏠 ' + t('home'));
+  setText('nav-courses',     '📚 ' + t('courses'));
+  setText('nav-leaderboard', '🏆 ' + t('nav_leaderboard'));
+  setText('nav-support',     '💬 ' + t('nav_support'));
+  setText('nav-dashboard',   '📊 ' + t('dashboard'));
+  setText('nav-login',       t('nav_login'));
+  setText('nav-register',    t('nav_register'));
+  setText('nav-logout',      t('logout'));
+
   if (state.user) {
     navAuth.style.display = 'none';
     navUser.style.display = 'flex';
@@ -163,9 +175,11 @@ function updateNavbar() {
     }
     const navCoins = document.getElementById('nav-coins');
     if (navCoins) navCoins.textContent = state.coins;
-    // Admin tugmasi
     const navAdmin = document.getElementById('nav-admin');
-    if (navAdmin) navAdmin.style.display = state.user.isAdmin ? 'inline-flex' : 'none';
+    if (navAdmin) {
+      navAdmin.style.display = state.user.isAdmin ? 'inline-flex' : 'none';
+      navAdmin.textContent = '⚙️ ' + t('nav_admin');
+    }
   } else {
     navAuth.style.display = 'flex';
     navUser.style.display = 'none';
@@ -1082,6 +1096,7 @@ async function savePasswordChange() {
 
 // ==================== ADMIN PANEL ====================
 let adminSearchTimeout = null;
+let adminActiveTab = 'users'; // 'users' | 'courses'
 
 async function renderAdmin() {
   const el = document.getElementById('page-admin');
@@ -1128,24 +1143,64 @@ async function renderAdmin() {
         </div>
       </div>
 
-      <!-- QIDIRUV -->
-      <div class="admin-toolbar">
-        <input type="text" id="admin-search" placeholder="🔍 Username yoki email qidirish..." oninput="adminSearch()" class="admin-search-input">
-        <button class="btn btn-secondary" onclick="loadAdminUsers()" style="white-space:nowrap">🔄 Yangilash</button>
+      <!-- TABS -->
+      <div class="admin-tabs">
+        <button class="admin-tab-btn ${adminActiveTab==='users'?'active':''}" onclick="switchAdminTab('users')">${t('admin_users_tab')}</button>
+        <button class="admin-tab-btn ${adminActiveTab==='courses'?'active':''}" onclick="switchAdminTab('courses')">${t('admin_courses_tab')}</button>
       </div>
 
-      <!-- USERS TABLE -->
-      <div id="admin-users-wrap">
-        <p style="color:var(--muted);text-align:center;padding:20px">Yuklanmoqda...</p>
+      <!-- USERS TAB -->
+      <div id="admin-tab-users" style="display:${adminActiveTab==='users'?'block':'none'}">
+        <div class="admin-toolbar">
+          <input type="text" id="admin-search" placeholder="🔍 Username yoki email qidirish..." oninput="adminSearch()" class="admin-search-input">
+          <button class="btn btn-secondary" onclick="loadAdminUsers()" style="white-space:nowrap">🔄 Yangilash</button>
+        </div>
+        <div id="admin-users-wrap">
+          <p style="color:var(--muted);text-align:center;padding:20px">Yuklanmoqda...</p>
+        </div>
+        <div id="admin-pagination" style="display:flex;gap:8px;justify-content:center;margin-top:16px;flex-wrap:wrap"></div>
       </div>
 
-      <!-- PAGINATION -->
-      <div id="admin-pagination" style="display:flex;gap:8px;justify-content:center;margin-top:16px;flex-wrap:wrap"></div>
+      <!-- COURSES TAB -->
+      <div id="admin-tab-courses" style="display:${adminActiveTab==='courses'?'block':'none'}">
+        <div class="admin-toolbar">
+          <span style="color:var(--muted);font-size:0.9rem">Admin tomonidan yaratilgan qo'shimcha kurslar</span>
+          <button class="btn btn-primary" onclick="showCourseForm()" style="white-space:nowrap">${t('admin_new_course')}</button>
+        </div>
+
+        <!-- Kurs yaratish / tahrirlash formasi -->
+        <div id="admin-course-form" style="display:none" class="admin-course-form-wrap"></div>
+
+        <!-- Kurslar ro'yxati -->
+        <div id="admin-courses-list">
+          <p style="color:var(--muted);text-align:center;padding:20px">Yuklanmoqda...</p>
+        </div>
+      </div>
 
     </div>
   `;
 
-  loadAdminUsers();
+  if (adminActiveTab === 'users') loadAdminUsers();
+  else loadAdminCourses();
+}
+
+function switchAdminTab(tab) {
+  adminActiveTab = tab;
+  const usersTab = document.getElementById('admin-tab-users');
+  const coursesTab = document.getElementById('admin-tab-courses');
+  document.querySelectorAll('.admin-tab-btn').forEach(b => b.classList.remove('active'));
+  const btns = document.querySelectorAll('.admin-tab-btn');
+  if (tab === 'users') {
+    if (usersTab) usersTab.style.display = 'block';
+    if (coursesTab) coursesTab.style.display = 'none';
+    if (btns[0]) btns[0].classList.add('active');
+    loadAdminUsers();
+  } else {
+    if (usersTab) usersTab.style.display = 'none';
+    if (coursesTab) coursesTab.style.display = 'block';
+    if (btns[1]) btns[1].classList.add('active');
+    loadAdminCourses();
+  }
 }
 
 let adminPage = 1;
@@ -1311,6 +1366,386 @@ async function deleteUser(userId, username) {
   if (res.success) {
     showToast(`✅ "${username}" o'chirildi`);
     loadAdminUsers(adminPage);
+  } else {
+    showToast('❌ ' + (res.error || 'Xato'), 'error');
+  }
+}
+
+// ==================== ADMIN — COURSES ====================
+let editingCourseId = null;  // null = yangi, string = tahrirlash
+let editingLessonId = null;
+
+async function loadAdminCourses() {
+  const wrap = document.getElementById('admin-courses-list');
+  if (!wrap) return;
+  wrap.innerHTML = '<p style="color:var(--muted);text-align:center;padding:20px">⏳ Yuklanmoqda...</p>';
+
+  const data = await api('/admin/courses');
+  if (!Array.isArray(data) || data.error) {
+    wrap.innerHTML = `<p style="color:var(--red);text-align:center;padding:20px">❌ ${data.error || 'Xato'}</p>`;
+    return;
+  }
+
+  if (!data.length) {
+    wrap.innerHTML = `<p style="color:var(--muted);text-align:center;padding:40px">${t('admin_no_courses')}</p>`;
+    return;
+  }
+
+  wrap.innerHTML = data.map(c => {
+    const title = (c.title && (c.title.ru || c.title.uz || c.title.en)) || '—';
+    const icon = c.icon || '📖';
+    const lessons = (c.lessons || []).length;
+    const color = c.color || '#00aaff';
+    return `
+      <div class="admin-course-card" id="ccard-${c._id}">
+        <div class="admin-course-card-header" style="border-left:4px solid ${color}">
+          <div class="admin-course-card-title">
+            <span class="admin-course-icon">${icon}</span>
+            <div>
+              <div style="font-weight:700;font-size:1rem">${title}</div>
+              <div style="color:var(--muted);font-size:0.8rem">Daraja ${c.level || 1} · ${lessons} ta dars</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <button class="admin-btn admin-btn-ok" onclick="showCourseForm('${c._id}')">${t('admin_course_edit')}</button>
+            <button class="admin-btn" onclick="toggleCourseExpand('${c._id}')">📋 Darslar</button>
+            <button class="admin-btn admin-btn-danger" onclick="deleteCourse('${c._id}', \`${title}\`)">${t('admin_course_delete')}</button>
+          </div>
+        </div>
+        <!-- Darslar (yashirin) -->
+        <div id="lessons-${c._id}" style="display:none;padding:12px 16px;border-top:1px solid var(--border)">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <span style="color:var(--muted);font-size:0.85rem">${lessons} ta dars</span>
+            <button class="admin-btn admin-btn-ok" onclick="showLessonForm('${c._id}')">${t('admin_add_lesson')}</button>
+          </div>
+          <div id="lesson-form-${c._id}" style="display:none"></div>
+          ${(c.lessons||[]).length === 0
+            ? `<p style="color:var(--muted);font-size:0.85rem;padding:8px 0">${t('admin_no_lessons')}</p>`
+            : (c.lessons||[]).map(l => {
+                const ltitle = (l.title && (l.title.ru || l.title.uz || l.title.en)) || '—';
+                const ldur = (l.duration && (l.duration.ru || l.duration.uz || '—')) || '—';
+                return `
+                  <div class="admin-lesson-row" id="lrow-${l.id}">
+                    <div>
+                      <div style="font-weight:600;font-size:0.9rem">📄 ${ltitle}</div>
+                      <div style="color:var(--muted);font-size:0.8rem">⏱ ${ldur}</div>
+                    </div>
+                    <div style="display:flex;gap:4px">
+                      <button class="admin-icon-btn" onclick="showLessonForm('${c._id}', '${l.id}')" title="Tahrirlash">✏️</button>
+                      <button class="admin-icon-btn" onclick="deleteLesson('${c._id}', '${l.id}', \`${ltitle}\`)" title="O'chirish">🗑️</button>
+                    </div>
+                  </div>
+                `;
+              }).join('')
+          }
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function toggleCourseExpand(courseId) {
+  const el = document.getElementById(`lessons-${courseId}`);
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+function showCourseForm(courseId = null) {
+  editingCourseId = courseId;
+  const wrap = document.getElementById('admin-course-form');
+  if (!wrap) return;
+  wrap.style.display = 'block';
+
+  // Agar tahrirlash — mavjud ma'lumotlarni yuklash
+  if (courseId) {
+    wrap.innerHTML = '<p style="color:var(--muted);padding:16px">Yuklanmoqda...</p>';
+    api('/admin/courses').then(courses => {
+      const c = Array.isArray(courses) ? courses.find(x => x._id === courseId) : null;
+      if (!c) { wrap.innerHTML = '<p style="color:var(--red);padding:16px">Topilmadi</p>'; return; }
+      renderCourseForm(wrap, c);
+    });
+  } else {
+    renderCourseForm(wrap, null);
+  }
+
+  wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function renderCourseForm(wrap, c) {
+  const v = c || {};
+  const ti = v.title || {}; const di = v.desc || {}; const ln = v.levelName || {};
+  wrap.innerHTML = `
+    <div class="admin-form-box">
+      <h3 style="margin:0 0 16px">${editingCourseId ? '✏️ Kursni tahrirlash' : '➕ Yangi kurs yaratish'}</h3>
+
+      <div class="admin-form-row">
+        <div class="admin-form-group" style="flex:0 0 80px">
+          <label>${t('admin_course_icon')}</label>
+          <input type="text" id="cf-icon" value="${v.icon || '📖'}" maxlength="8" style="font-size:1.4rem;text-align:center">
+        </div>
+        <div class="admin-form-group" style="flex:0 0 90px">
+          <label>${t('admin_course_color')}</label>
+          <input type="color" id="cf-color" value="${v.color || '#00aaff'}" style="height:38px;padding:2px">
+        </div>
+        <div class="admin-form-group" style="flex:0 0 100px">
+          <label>${t('admin_course_level')}</label>
+          <select id="cf-level" style="padding:8px;background:var(--bg2);color:var(--text);border:1px solid var(--border);border-radius:8px">
+            ${[1,2,3,4].map(n=>`<option value="${n}" ${(v.level||1)==n?'selected':''}>${n}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+
+      <div class="admin-form-section-label">📝 ${t('admin_course_title')}</div>
+      <div class="admin-form-row">
+        <div class="admin-form-group">
+          <label>${t('admin_lang_uz')} *</label>
+          <input type="text" id="cf-title-uz" value="${ti.uz||''}" placeholder="O'zbekcha sarlavha">
+        </div>
+        <div class="admin-form-group">
+          <label>${t('admin_lang_ru')}</label>
+          <input type="text" id="cf-title-ru" value="${ti.ru||''}" placeholder="Русское название">
+        </div>
+        <div class="admin-form-group">
+          <label>${t('admin_lang_en')}</label>
+          <input type="text" id="cf-title-en" value="${ti.en||''}" placeholder="English title">
+        </div>
+      </div>
+
+      <div class="admin-form-section-label">📋 ${t('admin_course_desc')}</div>
+      <div class="admin-form-row">
+        <div class="admin-form-group">
+          <label>${t('admin_lang_uz')}</label>
+          <textarea id="cf-desc-uz" rows="2" placeholder="Tavsif (o'zbekcha)">${di.uz||''}</textarea>
+        </div>
+        <div class="admin-form-group">
+          <label>${t('admin_lang_ru')}</label>
+          <textarea id="cf-desc-ru" rows="2" placeholder="Описание (русский)">${di.ru||''}</textarea>
+        </div>
+        <div class="admin-form-group">
+          <label>${t('admin_lang_en')}</label>
+          <textarea id="cf-desc-en" rows="2" placeholder="Description (English)">${di.en||''}</textarea>
+        </div>
+      </div>
+
+      <div class="admin-form-section-label">🏷️ ${t('admin_course_level_name')}</div>
+      <div class="admin-form-row">
+        <div class="admin-form-group">
+          <label>${t('admin_lang_uz')}</label>
+          <input type="text" id="cf-ln-uz" value="${ln.uz||"Qo'shimcha"}" placeholder="Qo'shimcha">
+        </div>
+        <div class="admin-form-group">
+          <label>${t('admin_lang_ru')}</label>
+          <input type="text" id="cf-ln-ru" value="${ln.ru||'Дополнительный'}" placeholder="Дополнительный">
+        </div>
+        <div class="admin-form-group">
+          <label>${t('admin_lang_en')}</label>
+          <input type="text" id="cf-ln-en" value="${ln.en||'Extra'}" placeholder="Extra">
+        </div>
+      </div>
+
+      <div id="cf-msg" class="profile-msg" style="margin-top:8px"></div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="btn btn-primary" onclick="saveCourseForm()" id="cf-save-btn">${t('admin_course_save')}</button>
+        <button class="btn btn-secondary" onclick="closeCourseForm()">${t('admin_course_cancel')}</button>
+      </div>
+    </div>
+  `;
+}
+
+function closeCourseForm() {
+  const wrap = document.getElementById('admin-course-form');
+  if (wrap) { wrap.style.display = 'none'; wrap.innerHTML = ''; }
+  editingCourseId = null;
+}
+
+async function saveCourseForm() {
+  const btn = document.getElementById('cf-save-btn');
+  const msgEl = document.getElementById('cf-msg');
+  const titleUz = document.getElementById('cf-title-uz')?.value.trim();
+  if (!titleUz) {
+    if (msgEl) { msgEl.className = 'profile-msg error'; msgEl.textContent = "O'zbekcha sarlavha majburiy!"; }
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = t('profile_saving');
+
+  const body = {
+    title: { uz: titleUz, ru: document.getElementById('cf-title-ru')?.value.trim()||titleUz, en: document.getElementById('cf-title-en')?.value.trim()||titleUz },
+    desc:  { uz: document.getElementById('cf-desc-uz')?.value||'', ru: document.getElementById('cf-desc-ru')?.value||'', en: document.getElementById('cf-desc-en')?.value||'' },
+    levelName: { uz: document.getElementById('cf-ln-uz')?.value||"Qo'shimcha", ru: document.getElementById('cf-ln-ru')?.value||'Дополнительный', en: document.getElementById('cf-ln-en')?.value||'Extra' },
+    icon:  document.getElementById('cf-icon')?.value || '📖',
+    color: document.getElementById('cf-color')?.value || '#00aaff',
+    level: parseInt(document.getElementById('cf-level')?.value) || 1,
+  };
+
+  const res = editingCourseId
+    ? await api(`/admin/courses/${editingCourseId}`, { method: 'PUT', body: JSON.stringify(body) })
+    : await api('/admin/courses', { method: 'POST', body: JSON.stringify(body) });
+
+  btn.disabled = false;
+  btn.textContent = t('admin_course_save');
+
+  if (res.success || res.course) {
+    showToast(editingCourseId ? '✅ Kurs yangilandi' : '✅ Kurs yaratildi');
+    closeCourseForm();
+    // courses state cache'ni tozalash
+    state.courses = [];
+    loadAdminCourses();
+  } else {
+    if (msgEl) { msgEl.className = 'profile-msg error'; msgEl.textContent = res.error || 'Xato'; }
+  }
+}
+
+async function deleteCourse(courseId, title) {
+  if (!confirm(`🗑️ "${title}" kursini o'chirishni tasdiqlaysizmi?`)) return;
+  const res = await api(`/admin/courses/${courseId}`, { method: 'DELETE' });
+  if (res.success) {
+    showToast('✅ Kurs o\'chirildi');
+    state.courses = [];
+    loadAdminCourses();
+  } else {
+    showToast('❌ ' + (res.error || 'Xato'), 'error');
+  }
+}
+
+// ---- Darslar ----
+function showLessonForm(courseId, lessonId = null) {
+  editingLessonId = lessonId;
+  const wrap = document.getElementById(`lesson-form-${courseId}`);
+  if (!wrap) return;
+  wrap.style.display = 'block';
+
+  if (lessonId) {
+    // Mavjud dars ma'lumotlarini topish
+    api('/admin/courses').then(courses => {
+      const c = Array.isArray(courses) ? courses.find(x => x._id === courseId) : null;
+      const l = c ? (c.lessons||[]).find(x => x.id === lessonId) : null;
+      renderLessonForm(wrap, courseId, l);
+    });
+  } else {
+    renderLessonForm(wrap, courseId, null);
+  }
+  wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function renderLessonForm(wrap, courseId, l) {
+  const v = l || {};
+  const ti = v.title || {}; const co = v.content || {}; const du = v.duration || {};
+  wrap.innerHTML = `
+    <div class="admin-form-box" style="margin-bottom:12px">
+      <h4 style="margin:0 0 12px">${editingLessonId ? '✏️ Darsni tahrirlash' : '➕ Yangi dars'}</h4>
+
+      <div class="admin-form-section-label">📝 ${t('admin_lesson_title')}</div>
+      <div class="admin-form-row">
+        <div class="admin-form-group">
+          <label>${t('admin_lang_uz')} *</label>
+          <input type="text" id="lf-title-uz-${courseId}" value="${ti.uz||''}" placeholder="O'zbekcha">
+        </div>
+        <div class="admin-form-group">
+          <label>${t('admin_lang_ru')}</label>
+          <input type="text" id="lf-title-ru-${courseId}" value="${ti.ru||''}" placeholder="Русский">
+        </div>
+        <div class="admin-form-group">
+          <label>${t('admin_lang_en')}</label>
+          <input type="text" id="lf-title-en-${courseId}" value="${ti.en||''}" placeholder="English">
+        </div>
+      </div>
+
+      <div class="admin-form-section-label">⏱ ${t('admin_lesson_duration')}</div>
+      <div class="admin-form-row">
+        <div class="admin-form-group">
+          <label>${t('admin_lang_uz')}</label>
+          <input type="text" id="lf-dur-uz-${courseId}" value="${du.uz||''}" placeholder="15 daqiqa">
+        </div>
+        <div class="admin-form-group">
+          <label>${t('admin_lang_ru')}</label>
+          <input type="text" id="lf-dur-ru-${courseId}" value="${du.ru||''}" placeholder="15 минут">
+        </div>
+        <div class="admin-form-group">
+          <label>${t('admin_lang_en')}</label>
+          <input type="text" id="lf-dur-en-${courseId}" value="${du.en||''}" placeholder="15 min">
+        </div>
+      </div>
+
+      <div class="admin-form-section-label">📄 ${t('admin_lesson_content')} <span style="color:var(--muted);font-size:0.75rem">(HTML qo'llab-quvvatlanadi)</span></div>
+      <div style="display:grid;gap:8px">
+        <div class="admin-form-group">
+          <label>${t('admin_lang_uz')}</label>
+          <textarea id="lf-content-uz-${courseId}" rows="5" placeholder="<h2>Sarlavha</h2><p>Matn...</p>" style="font-family:monospace;font-size:0.85rem">${co.uz||''}</textarea>
+        </div>
+        <div class="admin-form-group">
+          <label>${t('admin_lang_ru')}</label>
+          <textarea id="lf-content-ru-${courseId}" rows="5" placeholder="<h2>Заголовок</h2><p>Текст...</p>" style="font-family:monospace;font-size:0.85rem">${co.ru||''}</textarea>
+        </div>
+        <div class="admin-form-group">
+          <label>${t('admin_lang_en')}</label>
+          <textarea id="lf-content-en-${courseId}" rows="5" placeholder="<h2>Title</h2><p>Content...</p>" style="font-family:monospace;font-size:0.85rem">${co.en||''}</textarea>
+        </div>
+      </div>
+
+      <div id="lf-msg-${courseId}" class="profile-msg" style="margin-top:8px"></div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="btn btn-primary" onclick="saveLessonForm('${courseId}')" id="lf-save-btn-${courseId}">${t('admin_lesson_save')}</button>
+        <button class="btn btn-secondary" onclick="closeLessonForm('${courseId}')">${t('admin_course_cancel')}</button>
+      </div>
+    </div>
+  `;
+}
+
+function closeLessonForm(courseId) {
+  const wrap = document.getElementById(`lesson-form-${courseId}`);
+  if (wrap) { wrap.style.display = 'none'; wrap.innerHTML = ''; }
+  editingLessonId = null;
+}
+
+async function saveLessonForm(courseId) {
+  const btn = document.getElementById(`lf-save-btn-${courseId}`);
+  const msgEl = document.getElementById(`lf-msg-${courseId}`);
+  const titleUz = document.getElementById(`lf-title-uz-${courseId}`)?.value.trim();
+
+  if (!titleUz) {
+    if (msgEl) { msgEl.className = 'profile-msg error'; msgEl.textContent = "O'zbekcha sarlavha majburiy!"; }
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = t('profile_saving');
+
+  const body = {
+    title:   { uz: titleUz, ru: document.getElementById(`lf-title-ru-${courseId}`)?.value.trim()||titleUz, en: document.getElementById(`lf-title-en-${courseId}`)?.value.trim()||titleUz },
+    duration:{ uz: document.getElementById(`lf-dur-uz-${courseId}`)?.value||'—', ru: document.getElementById(`lf-dur-ru-${courseId}`)?.value||'—', en: document.getElementById(`lf-dur-en-${courseId}`)?.value||'—' },
+    content: { uz: document.getElementById(`lf-content-uz-${courseId}`)?.value||'', ru: document.getElementById(`lf-content-ru-${courseId}`)?.value||'', en: document.getElementById(`lf-content-en-${courseId}`)?.value||'' },
+  };
+
+  const res = editingLessonId
+    ? await api(`/admin/courses/${courseId}/lessons/${editingLessonId}`, { method: 'PUT', body: JSON.stringify(body) })
+    : await api(`/admin/courses/${courseId}/lessons`, { method: 'POST', body: JSON.stringify(body) });
+
+  btn.disabled = false;
+  btn.textContent = t('admin_lesson_save');
+
+  if (res.success) {
+    showToast(editingLessonId ? '✅ Dars yangilandi' : '✅ Dars qo\'shildi');
+    closeLessonForm(courseId);
+    state.courses = [];
+    loadAdminCourses().then(() => {
+      // Darslar ro'yxatini ochiq qoldirish
+      const el = document.getElementById(`lessons-${courseId}`);
+      if (el) el.style.display = 'block';
+    });
+  } else {
+    if (msgEl) { msgEl.className = 'profile-msg error'; msgEl.textContent = res.error || 'Xato'; }
+  }
+}
+
+async function deleteLesson(courseId, lessonId, title) {
+  if (!confirm(`🗑️ "${title}" darsini o'chirishni tasdiqlaysizmi?`)) return;
+  const res = await api(`/admin/courses/${courseId}/lessons/${lessonId}`, { method: 'DELETE' });
+  if (res.success) {
+    showToast('✅ Dars o\'chirildi');
+    state.courses = [];
+    loadAdminCourses().then(() => {
+      const el = document.getElementById(`lessons-${courseId}`);
+      if (el) el.style.display = 'block';
+    });
   } else {
     showToast('❌ ' + (res.error || 'Xato'), 'error');
   }

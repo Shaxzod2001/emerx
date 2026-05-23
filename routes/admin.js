@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const adminAuth = require('../middleware/adminAuth');
-const { users, progress, quizResults } = require('../database');
+const { users, progress, quizResults, customCourses } = require('../database');
 
 // Barcha admin routelari himoyalangan
 router.use(adminAuth);
@@ -166,6 +166,130 @@ router.post('/reset-coins', async (req, res) => {
       await users.updateAsync({ _id: u._id }, { $set: { coins: 0 } });
     }
     res.json({ success: true, affected: all.length });
+  } catch (e) {
+    res.status(500).json({ error: 'Server xatosi' });
+  }
+});
+
+// ==================== KURSLAR ====================
+
+// Barcha custom kurslar ro'yxati
+router.get('/courses', async (req, res) => {
+  try {
+    const courses = await customCourses.findAsync({ deleted: { $ne: true } });
+    res.json(courses);
+  } catch (e) {
+    console.error('admin/courses GET xato:', e.message);
+    res.status(500).json({ error: 'Server xatosi' });
+  }
+});
+
+// Yangi kurs yaratish
+router.post('/courses', async (req, res) => {
+  try {
+    const { title, desc, icon, color, level, levelName } = req.body;
+    if (!title || !title.uz) return res.status(400).json({ error: 'title.uz majburiy' });
+
+    const course = await customCourses.insertAsync({
+      title: title || { uz: '', ru: '', en: '' },
+      desc: desc || { uz: '', ru: '', en: '' },
+      levelName: levelName || { uz: "Qo'shimcha", ru: "Дополнительный", en: "Extra" },
+      icon: icon || '📖',
+      color: color || '#00aaff',
+      level: parseInt(level) || 1,
+      lessons: [],
+      createdAt: new Date().toISOString(),
+      createdBy: req.adminUser._id,
+    });
+    res.json({ success: true, course });
+  } catch (e) {
+    console.error('admin/courses POST xato:', e.message);
+    res.status(500).json({ error: 'Server xatosi' });
+  }
+});
+
+// Kursni tahrirlash
+router.put('/courses/:id', async (req, res) => {
+  try {
+    const { title, desc, icon, color, level, levelName } = req.body;
+    if (!title || !title.uz) return res.status(400).json({ error: 'title.uz majburiy' });
+    await customCourses.updateAsync({ _id: req.params.id }, { $set: {
+      title, desc, icon,
+      color: color || '#00aaff',
+      level: parseInt(level) || 1,
+      levelName,
+      updatedAt: new Date().toISOString(),
+    }});
+    res.json({ success: true });
+  } catch (e) {
+    console.error('admin/courses PUT xato:', e.message);
+    res.status(500).json({ error: 'Server xatosi' });
+  }
+});
+
+// Kursni o'chirish (soft delete)
+router.delete('/courses/:id', async (req, res) => {
+  try {
+    await customCourses.updateAsync({ _id: req.params.id }, { $set: { deleted: true } });
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: 'Server xatosi' });
+  }
+});
+
+// Dars qo'shish
+router.post('/courses/:id/lessons', async (req, res) => {
+  try {
+    const course = await customCourses.findOneAsync({ _id: req.params.id });
+    if (!course) return res.status(404).json({ error: 'Kurs topilmadi' });
+
+    const { title, content, duration } = req.body;
+    if (!title || !title.uz) return res.status(400).json({ error: 'title.uz majburiy' });
+
+    const lessonId = `lesson_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const lessons = [...(course.lessons || []), {
+      id: lessonId,
+      title: title || { uz: '', ru: '', en: '' },
+      content: content || { uz: '', ru: '', en: '' },
+      duration: duration || { uz: '—', ru: '—', en: '—' },
+    }];
+
+    await customCourses.updateAsync({ _id: req.params.id }, { $set: { lessons } });
+    res.json({ success: true, lessonId });
+  } catch (e) {
+    console.error('admin/courses/lessons POST xato:', e.message);
+    res.status(500).json({ error: 'Server xatosi' });
+  }
+});
+
+// Darsni tahrirlash
+router.put('/courses/:id/lessons/:lessonId', async (req, res) => {
+  try {
+    const course = await customCourses.findOneAsync({ _id: req.params.id });
+    if (!course) return res.status(404).json({ error: 'Kurs topilmadi' });
+
+    const { title, content, duration } = req.body;
+    const lessons = (course.lessons || []).map(l =>
+      l.id === req.params.lessonId ? { ...l, title, content, duration } : l
+    );
+
+    await customCourses.updateAsync({ _id: req.params.id }, { $set: { lessons } });
+    res.json({ success: true });
+  } catch (e) {
+    console.error('admin/courses/lessons PUT xato:', e.message);
+    res.status(500).json({ error: 'Server xatosi' });
+  }
+});
+
+// Darsni o'chirish
+router.delete('/courses/:id/lessons/:lessonId', async (req, res) => {
+  try {
+    const course = await customCourses.findOneAsync({ _id: req.params.id });
+    if (!course) return res.status(404).json({ error: 'Kurs topilmadi' });
+
+    const lessons = (course.lessons || []).filter(l => l.id !== req.params.lessonId);
+    await customCourses.updateAsync({ _id: req.params.id }, { $set: { lessons } });
+    res.json({ success: true });
   } catch (e) {
     res.status(500).json({ error: 'Server xatosi' });
   }
