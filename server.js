@@ -7,6 +7,7 @@ const PORT = process.env.PORT || 3000;
 
 if (!process.env.MONGODB_URI) {
   console.error('❌ MONGODB_URI environment variable topilmadi!');
+  console.error('   Render Dashboard → Environment → MONGODB_URI ni qo\'shing');
   process.exit(1);
 }
 
@@ -19,8 +20,22 @@ app.use('/api/courses', require('./routes/courses'));
 app.use('/api/progress', require('./routes/progress'));
 app.use('/api/leaderboard', require('./routes/leaderboard'));
 
+// Noto'g'ri API yo'li — JSON qaytarsin (HTML emas)
+app.use('/api', (req, res) => {
+  res.status(404).json({ error: 'API yo\'li topilmadi' });
+});
+
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Global xato handler — route'lardan KEYIN bo'lishi shart
+app.use((err, req, res, next) => {
+  console.error('Server xatosi:', err.message);
+  if (req.path.startsWith('/api/')) {
+    return res.status(500).json({ error: 'Server ichki xatosi' });
+  }
+  res.status(500).sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 app.listen(PORT, () => {

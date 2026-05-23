@@ -27,20 +27,39 @@ window.currentLang = state.lang;
 async function api(path, opts = {}) {
   const headers = { 'Content-Type': 'application/json' };
   if (state.token) headers['Authorization'] = `Bearer ${state.token}`;
-  const res = await fetch(API + path, { headers, ...opts });
-  return res.json();
+  try {
+    const res = await fetch(API + path, { headers, ...opts });
+    const ct = res.headers.get('content-type') || '';
+    if (!ct.includes('application/json')) {
+      // Server HTML xato sahifasi qaytardi (502, 503 va h.k.)
+      console.warn(`[API] Non-JSON response from ${path} (${res.status})`);
+      return { error: `Server xatosi (${res.status}). Render.com qayta ishga tushmoqda, bir daqiqa kuting.` };
+    }
+    return await res.json();
+  } catch (e) {
+    console.error(`[API] Xato: ${path}`, e.message);
+    return { error: 'Tarmoq xatosi. Internet aloqangizni tekshiring.' };
+  }
 }
 
 // ==================== AUTH ====================
 async function initAuth() {
   if (!state.token) return;
-  const user = await api('/auth/me');
-  if (user.id) {
-    state.user = user;
-    state.lang = user.lang || state.lang;
-    window.currentLang = state.lang;
-    setLang(state.lang);
-  } else {
+  try {
+    const user = await api('/auth/me');
+    if (user.id) {
+      state.user = user;
+      state.lang = user.lang || state.lang;
+      window.currentLang = state.lang;
+      setLang(state.lang);
+      await loadProgress();
+    } else {
+      // Token eskirgan yoki server xatosi — tokenni tozala
+      state.token = null;
+      localStorage.removeItem('emerx_token');
+    }
+  } catch (e) {
+    console.warn('initAuth xatosi:', e.message);
     state.token = null;
     localStorage.removeItem('emerx_token');
   }
@@ -655,33 +674,48 @@ function switchAuthTab(tab) {
 
 async function handleLogin(e) {
   e.preventDefault();
-  const email = document.getElementById('login-email').value;
-  const pass = document.getElementById('login-pass').value;
-  const res = await login(email, pass);
-  if (res.ok) {
-    showPage('dashboard');
-  } else {
-    showAuthError(res.error);
+  const btn = e.target.querySelector('button[type="submit"]');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Kirilmoqda...'; }
+  try {
+    const email = document.getElementById('login-email').value;
+    const pass = document.getElementById('login-pass').value;
+    const res = await login(email, pass);
+    if (res.ok) {
+      showPage('dashboard');
+    } else {
+      showAuthError(res.error || 'Kirish amalga oshmadi');
+    }
+  } catch (e) {
+    showAuthError('Server bilan aloqa yo\'q. Qayta urinib ko\'ring.');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = t('btn_login'); }
   }
 }
 
 async function handleRegister(e) {
   e.preventDefault();
-  const username = document.getElementById('reg-user').value;
-  const email = document.getElementById('reg-email').value;
-  const pass = document.getElementById('reg-pass').value;
-  const lang = document.getElementById('reg-lang').value;
-  const captchaAnswer = document.getElementById('captcha-ans').value;
+  const btn = e.target.querySelector('button[type="submit"]');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Ro\'yxatdan o\'tilmoqda...'; }
+  try {
+    const username = document.getElementById('reg-user').value;
+    const email = document.getElementById('reg-email').value;
+    const pass = document.getElementById('reg-pass').value;
+    const lang = document.getElementById('reg-lang').value;
+    const captchaAnswer = document.getElementById('captcha-ans').value;
 
-  const res = await register(username, email, pass, lang, captchaToken, captchaAnswer);
-  if (res.ok) {
-    showPage('dashboard');
-  } else {
-    showAuthError(res.error);
-    // Noto'g'ri CAPTCHA bo'lsa — yangi savol yuklash
-    if (res.error && res.error.toLowerCase().includes('captcha')) {
-      await refreshCaptcha();
+    const res = await register(username, email, pass, lang, captchaToken, captchaAnswer);
+    if (res.ok) {
+      showPage('dashboard');
+    } else {
+      showAuthError(res.error || 'Ro\'yxatdan o\'tish amalga oshmadi');
+      if (res.error && res.error.toLowerCase().includes('captcha')) {
+        await refreshCaptcha();
+      }
     }
+  } catch (e) {
+    showAuthError('Server bilan aloqa yo\'q. Qayta urinib ko\'ring.');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = t('btn_register'); }
   }
 }
 
