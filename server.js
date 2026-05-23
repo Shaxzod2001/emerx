@@ -33,7 +33,9 @@ app.get('/api/health', async (req, res) => {
     info.dbStatus = 'ok';
   } else if (checkAtlas) {
     try {
-      const ok = await checkAtlas();
+      // ?retry=1 bo'lsa majburan qayta ulanadi
+      const force = req.query.retry === '1';
+      const ok = await checkAtlas(force);
       if (ok) {
         info.db = 'mongodb-atlas';
         info.dbStatus = 'connected';

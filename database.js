@@ -170,8 +170,11 @@ function makeMongoCollection(name, indexes = []) {
 
 let atlasWorking = null; // null=test qilinmagan, true=ishlaydi, false=ishlamaydi
 
-async function checkAtlas() {
-  if (atlasWorking !== null) return atlasWorking;
+async function checkAtlas(force = false) {
+  if (!force && atlasWorking !== null) return atlasWorking;
+  // force=true yoki birinchi marta: qayta tekshir
+  dbInstance = null;
+  connectingPromise = null;
   try {
     await getDb();
     atlasWorking = true;
@@ -179,8 +182,7 @@ async function checkAtlas() {
   } catch {
     atlasWorking = false;
     console.warn('⚠️  Atlas ulanmadi → NeDB ishlatilmoqda');
-    console.warn('   (Render da ma\'lumotlar sessiya davomida saqlanadi)');
-    console.warn('   Atlas Network Access → 0.0.0.0/0 qo\'shib muammoni hal qiling');
+    console.warn('   Atlas Network Access → 0.0.0.0/0 qo\'shing');
     return false;
   }
 }
