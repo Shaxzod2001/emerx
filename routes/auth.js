@@ -6,7 +6,6 @@ const { users } = require('../database');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'emerx_secret_2024';
 
-// HTML teglarini tozalash (XSS oldini olish)
 function sanitize(str) {
   return String(str).replace(/[<>&"'`]/g, c => ({
     '<': '&lt;', '>': '&gt;', '&': '&amp;',
@@ -14,104 +13,143 @@ function sanitize(str) {
   }[c])).trim();
 }
 
-// Email formatini tekshirish
 function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
 // CAPTCHA: matematik savol + imzolangan token
 router.get('/captcha', (req, res) => {
-  const a = Math.floor(Math.random() * 15) + 1;
-  const b = Math.floor(Math.random() * 15) + 1;
-  const ops = [
-    { q: `${a} + ${b}`, ans: a + b },
-    { q: `${a + b} - ${b}`, ans: a },
-    { q: `${a} × ${b > 5 ? 2 : b}`, ans: a * (b > 5 ? 2 : b) },
-  ];
-  const op = ops[Math.floor(Math.random() * ops.length)];
-  const token = jwt.sign({ answer: op.ans }, JWT_SECRET, { expiresIn: '10m' });
-  res.json({ token, question: `${op.q} = ?` });
+  try {
+    const a = Math.floor(Math.random() * 15) + 1;
+    const b = Math.floor(Math.random() * 15) + 1;
+    const ops = [
+      { q: `${a} + ${b}`, ans: a + b },
+      { q: `${a + b} - ${b}`, ans: a },
+      { q: `${a} × ${b > 5 ? 2 : b}`, ans: a * (b > 5 ? 2 : b) },
+    ];
+    const op = ops[Math.floor(Math.random() * ops.length)];
+    const token = jwt.sign({ answer: op.ans }, JWT_SECRET, { expiresIn: '10m' });
+    res.json({ token, question: `${op.q} = ?` });
+  } catch (e) {
+    console.error('Captcha xatosi:', e.message);
+    res.status(500).json({ error: 'Captcha yaratishda xato' });
+  }
 });
 
+// RO'YXATDAN O'TISH
 router.post('/register', async (req, res) => {
-  const { username, email, password, lang, captchaToken, captchaAnswer } = req.body;
-  if (!username || !email || !password)
-    return res.status(400).json({ error: 'All fields required' });
-
-  // CAPTCHA tekshiruv
-  if (!captchaToken || captchaAnswer === undefined)
-    return res.status(400).json({ error: 'CAPTCHA required' });
   try {
-    const decoded = jwt.verify(captchaToken, JWT_SECRET);
-    if (parseInt(captchaAnswer) !== decoded.answer)
-      return res.status(400).json({ error: 'CAPTCHA noto\'g\'ri, qaytadan urinib ko\'ring' });
-  } catch {
-    return res.status(400).json({ error: 'CAPTCHA muddati o\'tdi, sahifani yangilang' });
-  }
+    const { username, email, password, lang, captchaToken, captchaAnswer } = req.body;
 
-  // Parol uzunligi: 6–72 belgi (bcrypt 72 dan ko'proq belgini qabul qilmaydi)
-  if (password.length < 6)
-    return res.status(400).json({ error: 'Password min 6 chars' });
-  if (password.length > 72)
-    return res.status(400).json({ error: 'Password max 72 chars' });
+    if (!username || !email || !password)
+      return res.status(400).json({ error: 'Barcha maydonlarni to\'ldiring' });
 
-  // Email format tekshiruv
-  if (!isValidEmail(email))
-    return res.status(400).json({ error: 'Invalid email format' });
+    // CAPTCHA tekshiruv
+    if (!captchaToken || captchaAnswer === undefined)
+      return res.status(400).json({ error: 'CAPTCHA majburiy' });
+    try {
+      const decoded = jwt.verify(captchaToken, JWT_SECRET);
+      if (parseInt(captchaAnswer) !== decoded.answer)
+        return res.status(400).json({ error: 'CAPTCHA noto\'g\'ri, qaytadan urinib ko\'ring' });
+    } catch {
+      return res.status(400).json({ error: 'CAPTCHA muddati o\'tdi, yangi savol oling' });
+    }
 
-  // Username: 3–30 belgi, faqat harf/raqam/_ va XSS tozalash
-  const cleanUsername = sanitize(username);
-  if (cleanUsername.length < 3 || cleanUsername.length > 30)
-    return res.status(400).json({ error: 'Username must be 3–30 chars' });
-  if (!/^[a-zA-Z0-9_]+$/.test(username))
-    return res.status(400).json({ error: 'Username: only letters, numbers and _' });
+    if (password.length < 6)
+      return res.status(400).json({ error: 'Parol kamida 6 belgi bo\'lishi kerak' });
+    if (password.length > 72)
+      return res.status(400).json({ error: 'Parol 72 belgidan oshmasligi kerak' });
 
-  try {
+    if (!isValidEmail(email))
+      return res.status(400).json({ error: 'Email formati noto\'g\'ri' });
+
+    const cleanUsername = sanitize(username);
+    if (cleanUsername.length < 3 || cleanUsername.length > 30)
+      return res.status(400).json({ error: 'Foydalanuvchi nomi 3–30 belgi bo\'lishi kerak' });
+    if (!/^[a-zA-Z0-9_]+$/.test(username))
+      return res.status(400).json({ error: 'Foydalanuvchi nomida faqat harf, raqam va _ bo\'lishi mumkin' });
+
     const hash = await bcrypt.hash(password, 10);
     const cleanEmail = email.toLowerCase().trim();
-    const user = await users.insertAsync({ username: cleanUsername, email: cleanEmail, password: hash, lang: lang || 'uz', created_at: new Date() });
-    const token = jwt.sign({ id: user._id, username: cleanUsername, email: cleanEmail }, JWT_SECRET, { expiresIn: '7d' });
+    const user = await users.insertAsync({
+      username: cleanUsername,
+      email: cleanEmail,
+      password: hash,
+      lang: lang || 'uz',
+      coins: 0,
+      created_at: new Date()
+    });
+
+    const token = jwt.sign(
+      { id: user._id, username: cleanUsername, email: cleanEmail },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
     res.json({ token, user: { id: user._id, username: cleanUsername, email: cleanEmail, lang: lang || 'uz' } });
   } catch (e) {
     if (e.errorType === 'uniqueViolated') {
-      res.status(409).json({ error: 'Bu username yoki email allaqachon mavjud' });
-    } else {
-      console.error('❌ Register xatosi:', e.message, e.code, e.stack?.split('\n')[0]);
-      res.status(500).json({ error: 'Server xatosi: ' + (e.message || 'noma\'lum') });
+      return res.status(409).json({ error: 'Bu username yoki email allaqachon mavjud' });
     }
+    console.error('❌ Register xatosi:', e.message);
+    res.status(500).json({ error: 'Server xatosi, qayta urinib ko\'ring' });
   }
 });
 
+// KIRISH
 router.post('/login', async (req, res) => {
-  const { email, password } = req.body;
-  if (!email || !password)
-    return res.status(400).json({ error: 'All fields required' });
+  try {
+    const { email, password } = req.body;
 
-  // Parol juda uzun bo'lsa bcrypt sekinlashadi — tekshiruv
-  if (password.length > 72)
-    return res.status(400).json({ error: 'Invalid credentials' });
+    if (!email || !password)
+      return res.status(400).json({ error: 'Email va parolni kiriting' });
+    if (password.length > 72)
+      return res.status(400).json({ error: 'Noto\'g\'ri ma\'lumotlar' });
 
-  const user = await users.findOneAsync({ email: email.toLowerCase().trim() });
-  if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+    const user = await users.findOneAsync({ email: email.toLowerCase().trim() });
+    if (!user) return res.status(401).json({ error: 'Email yoki parol noto\'g\'ri' });
 
-  const match = await bcrypt.compare(password, user.password);
-  if (!match) return res.status(401).json({ error: 'Invalid credentials' });
+    const match = await bcrypt.compare(password, user.password);
+    if (!match) return res.status(401).json({ error: 'Email yoki parol noto\'g\'ri' });
 
-  const token = jwt.sign({ id: user._id, username: user.username, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
-  res.json({ token, user: { id: user._id, username: user.username, email: user.email, lang: user.lang } });
+    const token = jwt.sign(
+      { id: user._id, username: user.username, email: user.email },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+    res.json({
+      token,
+      user: { id: user._id, username: user.username, email: user.email, lang: user.lang }
+    });
+  } catch (e) {
+    console.error('❌ Login xatosi:', e.message);
+    res.status(500).json({ error: 'Server xatosi, qayta urinib ko\'ring' });
+  }
 });
 
+// JORIY FOYDALANUVCHI
 router.get('/me', require('../middleware/auth'), async (req, res) => {
-  const user = await users.findOneAsync({ _id: req.user.id });
-  if (!user) return res.status(404).json({ error: 'User not found' });
-  res.json({ id: user._id, username: user.username, email: user.email, lang: user.lang, created_at: user.created_at });
+  try {
+    const user = await users.findOneAsync({ _id: req.user.id });
+    if (!user) return res.status(404).json({ error: 'Foydalanuvchi topilmadi' });
+    res.json({ id: user._id, username: user.username, email: user.email, lang: user.lang, coins: user.coins || 0 });
+  } catch (e) {
+    console.error('❌ /me xatosi:', e.message);
+    res.status(500).json({ error: 'Server xatosi' });
+  }
 });
 
+// TIL O'ZGARTIRISH
 router.put('/lang', require('../middleware/auth'), async (req, res) => {
-  const { lang } = req.body;
-  if (!['uz', 'ru', 'en'].includes(lang)) return res.status(400).json({ error: 'Invalid lang' });
-  await users.updateAsync({ _id: req.user.id }, { $set: { lang } });
-  res.json({ success: true });
+  try {
+    const { lang } = req.body;
+    if (!['uz', 'ru', 'en'].includes(lang))
+      return res.status(400).json({ error: 'Noto\'g\'ri til' });
+    await users.updateAsync({ _id: req.user.id }, { $set: { lang } });
+    res.json({ success: true });
+  } catch (e) {
+    console.error('❌ /lang xatosi:', e.message);
+    res.status(500).json({ error: 'Server xatosi' });
+  }
 });
 
 module.exports = router;

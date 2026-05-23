@@ -82,14 +82,20 @@ async function login(email, password) {
   if (res.token) {
     state.token = res.token;
     state.user = res.user;
-    state.lang = res.user.lang || 'uz';
-    window.currentLang = state.lang;
+    const lang = res.user.lang || state.lang;
+    state.lang = lang;
+    window.currentLang = lang;
     localStorage.setItem('emerx_token', res.token);
-    localStorage.setItem('emerx_lang', state.lang);
-    setLang(state.lang);
+    localStorage.setItem('emerx_lang', lang);
+    // Til tugmalarini yangilash (sahifani qayta render qilmasdan)
+    document.querySelectorAll('.lang-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.lang === lang);
+    });
+    // Progressni yuklash (navbardagi coinlar uchun)
+    await loadProgress();
     return { ok: true };
   }
-  return { ok: false, error: res.error };
+  return { ok: false, error: res.error || 'Kirish amalga oshmadi' };
 }
 
 async function register(username, email, password, lang, captchaToken, captchaAnswer) {
@@ -104,16 +110,22 @@ async function register(username, email, password, lang, captchaToken, captchaAn
     window.currentLang = lang;
     localStorage.setItem('emerx_token', res.token);
     localStorage.setItem('emerx_lang', lang);
-    setLang(lang);
+    document.querySelectorAll('.lang-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.lang === lang);
+    });
     return { ok: true };
   }
-  return { ok: false, error: res.error };
+  return { ok: false, error: res.error || 'Ro\'yxatdan o\'tish amalga oshmadi' };
 }
 
 function logout() {
   state.token = null;
   state.user = null;
   state.progress = [];
+  state.coins = 0;
+  state.stats = { completed: 0, quizAvg: 0 };
+  state.currentCourse = null;
+  state.currentLesson = null;
   localStorage.removeItem('emerx_token');
   updateNavbar();
   showPage('home');
@@ -464,7 +476,7 @@ let quizDone = {};
 function selectAnswer(qi, oi, correct, lessonId, total) {
   if (quizDone[qi]) return;
   quizDone[qi] = true;
-  quizAnswers[qi] = oi;
+  quizAnswers[qi] = { chosen: oi, correct };
 
   const opts = document.querySelectorAll(`#quiz-q-${qi} .quiz-option`);
   opts.forEach((o, idx) => {
@@ -475,26 +487,29 @@ function selectAnswer(qi, oi, correct, lessonId, total) {
 
   const answered = Object.keys(quizAnswers).length;
   if (answered >= total) {
-    const score = Object.entries(quizAnswers).filter(([q, a]) => {
-      const qIdx = parseInt(q);
-      return a === parseInt(a);
-    }).length;
-
-    const correctCount = Object.entries(quizAnswers).filter(([q, a]) => {
-      return true;
-    }).length;
-
-    let actualScore = 0;
-    document.querySelectorAll('.quiz-option.correct').forEach(() => {});
+    // To'g'ri javoblar sonini hisoblash
+    const correctCount = Object.values(quizAnswers).filter(a => a.chosen === a.correct).length;
 
     const resultEl = document.getElementById('quiz-result');
-    const pass = Object.values(quizDone).length >= total;
+    const isPerfect = correctCount === total;
     resultEl.style.display = 'block';
-    resultEl.className = `quiz-result ${pass ? 'pass' : 'fail'}`;
-    resultEl.textContent = pass ? t('quiz_pass') : t('quiz_fail');
+    resultEl.className = `quiz-result ${correctCount > 0 ? 'pass' : 'fail'}`;
+    resultEl.textContent = isPerfect
+      ? t('quiz_pass')
+      : `${correctCount}/${total} — ${t('quiz_fail')}`;
 
     if (state.user) {
-      api('/progress/quiz', { method: 'POST', body: JSON.stringify({ lesson_id: lessonId, score: answered, total }) });
+      api('/progress/quiz', {
+        method: 'POST',
+        body: JSON.stringify({ lesson_id: lessonId, score: correctCount, total })
+      }).then(res => {
+        if (res.bonusCoins > 0) {
+          state.coins += res.bonusCoins;
+          const navCoins = document.getElementById('nav-coins');
+          if (navCoins) navCoins.textContent = state.coins;
+          showCoinPopup(res.bonusCoins);
+        }
+      });
     }
 
     quizAnswers = {};
@@ -692,16 +707,22 @@ async function handleLogin(e) {
   e.preventDefault();
   const btn = e.target.querySelector('button[type="submit"]');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Kirilmoqda...'; }
+  const errEl = document.getElementById('auth-error');
+  if (errEl) { errEl.textContent = ''; errEl.classList.remove('show'); }
   try {
-    const email = document.getElementById('login-email').value;
+    const email = document.getElementById('login-email').value.trim();
     const pass = document.getElementById('login-pass').value;
+    if (!email || !pass) {
+      showAuthError('Email va parolni kiriting');
+      return;
+    }
     const res = await login(email, pass);
     if (res.ok) {
       showPage('dashboard');
     } else {
       showAuthError(res.error || 'Kirish amalga oshmadi');
     }
-  } catch (e) {
+  } catch (err) {
     showAuthError('Server bilan aloqa yo\'q. Qayta urinib ko\'ring.');
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = t('btn_login'); }
