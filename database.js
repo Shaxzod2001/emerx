@@ -30,6 +30,9 @@ async function getDb() {
         connectTimeoutMS: 5000,
         socketTimeoutMS: 10000,
         maxPoolSize: 10,
+        tls: true,
+        tlsAllowInvalidCertificates: true,   // Render SSL workaround
+        tlsAllowInvalidHostnames: true,
       });
       await client.connect();
       dbInstance = client.db('emerx');
