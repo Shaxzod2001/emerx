@@ -28,6 +28,7 @@ app.use('/api/courses', require('./routes/courses'));
 app.use('/api/progress', require('./routes/progress'));
 app.use('/api/leaderboard', require('./routes/leaderboard'));
 app.use('/api/profile',    require('./routes/profile'));
+app.use('/api/admin',      require('./routes/admin'));
 
 // Diagnostika — Node.js versiyasi va Atlas xato
 app.get('/api/diag', async (req, res) => {

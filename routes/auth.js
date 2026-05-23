@@ -108,6 +108,7 @@ router.post('/login', async (req, res) => {
     const user = await users.findOneAsync({ email: email.toLowerCase().trim() });
     if (!user) return res.status(401).json({ error: 'Email yoki parol noto\'g\'ri' });
 
+    if (user.isBanned) return res.status(403).json({ error: 'Hisobingiz bloklangan. Admin bilan bog\'laning.' });
     const match = await bcrypt.compare(password, user.password);
     if (!match) return res.status(401).json({ error: 'Email yoki parol noto\'g\'ri' });
 
@@ -116,9 +117,11 @@ router.post('/login', async (req, res) => {
       JWT_SECRET,
       { expiresIn: '7d' }
     );
+    const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase());
+    const isAdmin = user.isAdmin === true || adminEmails.includes((user.email || '').toLowerCase());
     res.json({
       token,
-      user: { id: user._id, username: user.username, email: user.email, lang: user.lang }
+      user: { id: user._id, username: user.username, email: user.email, lang: user.lang, isAdmin }
     });
   } catch (e) {
     console.error('❌ Login xatosi:', e.message);

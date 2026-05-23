@@ -163,6 +163,9 @@ function updateNavbar() {
     }
     const navCoins = document.getElementById('nav-coins');
     if (navCoins) navCoins.textContent = state.coins;
+    // Admin tugmasi
+    const navAdmin = document.getElementById('nav-admin');
+    if (navAdmin) navAdmin.style.display = state.user.isAdmin ? 'inline-flex' : 'none';
   } else {
     navAuth.style.display = 'flex';
     navUser.style.display = 'none';
@@ -191,6 +194,7 @@ function renderCurrentPage() {
     case 'leaderboard': renderLeaderboard(); break;
     case 'support': renderSupport(); break;
     case 'profile': renderProfile(); break;
+    case 'admin':   renderAdmin(); break;
   }
   updateNavbar();
 }
@@ -1076,6 +1080,250 @@ async function savePasswordChange() {
   }
 }
 
+// ==================== ADMIN PANEL ====================
+let adminSearchTimeout = null;
+
+async function renderAdmin() {
+  const el = document.getElementById('page-admin');
+  el.innerHTML = `<div class="admin-page"><p style="color:var(--muted);text-align:center;padding:60px">⏳ Yuklanmoqda...</p></div>`;
+
+  const stats = await api('/admin/stats');
+  if (stats.error) {
+    el.innerHTML = `<div class="admin-page"><p style="color:var(--red);text-align:center;padding:60px">❌ ${stats.error}</p></div>`;
+    return;
+  }
+
+  el.innerHTML = `
+    <div class="admin-page">
+      <div class="admin-header">
+        <h1>⚙️ Admin Panel</h1>
+        <p style="color:var(--muted)">EmerX boshqaruv markazi</p>
+      </div>
+
+      <!-- STATS -->
+      <div class="admin-stats">
+        <div class="admin-stat-card">
+          <div class="admin-stat-val">${stats.totalUsers}</div>
+          <div class="admin-stat-lbl">👤 Jami foydalanuvchi</div>
+        </div>
+        <div class="admin-stat-card">
+          <div class="admin-stat-val" style="color:#00c8ff">${stats.newUsersWeek}</div>
+          <div class="admin-stat-lbl">🆕 Bu hafta</div>
+        </div>
+        <div class="admin-stat-card">
+          <div class="admin-stat-val" style="color:#a78bfa">${stats.totalCompleted}</div>
+          <div class="admin-stat-lbl">✅ Bajarilgan darslar</div>
+        </div>
+        <div class="admin-stat-card">
+          <div class="admin-stat-val" style="color:#f59e0b">${stats.totalCoins}</div>
+          <div class="admin-stat-lbl">🪙 Jami coinlar</div>
+        </div>
+        <div class="admin-stat-card">
+          <div class="admin-stat-val" style="color:#f59e0b">${stats.admins}</div>
+          <div class="admin-stat-lbl">⚙️ Adminlar</div>
+        </div>
+        <div class="admin-stat-card">
+          <div class="admin-stat-val" style="color:var(--red)">${stats.banned}</div>
+          <div class="admin-stat-lbl">🚫 Bloklangan</div>
+        </div>
+      </div>
+
+      <!-- QIDIRUV -->
+      <div class="admin-toolbar">
+        <input type="text" id="admin-search" placeholder="🔍 Username yoki email qidirish..." oninput="adminSearch()" class="admin-search-input">
+        <button class="btn btn-secondary" onclick="loadAdminUsers()" style="white-space:nowrap">🔄 Yangilash</button>
+      </div>
+
+      <!-- USERS TABLE -->
+      <div id="admin-users-wrap">
+        <p style="color:var(--muted);text-align:center;padding:20px">Yuklanmoqda...</p>
+      </div>
+
+      <!-- PAGINATION -->
+      <div id="admin-pagination" style="display:flex;gap:8px;justify-content:center;margin-top:16px;flex-wrap:wrap"></div>
+
+    </div>
+  `;
+
+  loadAdminUsers();
+}
+
+let adminPage = 1;
+let adminTotal = 0;
+
+async function loadAdminUsers(page = 1) {
+  adminPage = page;
+  const q = document.getElementById('admin-search')?.value || '';
+  const wrap = document.getElementById('admin-users-wrap');
+  if (!wrap) return;
+  wrap.innerHTML = '<p style="color:var(--muted);text-align:center;padding:20px">⏳ Yuklanmoqda...</p>';
+
+  const data = await api(`/admin/users?q=${encodeURIComponent(q)}&page=${page}&limit=15`);
+  if (data.error) {
+    wrap.innerHTML = `<p style="color:var(--red);text-align:center;padding:20px">❌ ${data.error}</p>`;
+    return;
+  }
+
+  adminTotal = data.total;
+
+  if (!data.users.length) {
+    wrap.innerHTML = '<p style="color:var(--muted);text-align:center;padding:30px">Foydalanuvchi topilmadi</p>';
+    return;
+  }
+
+  wrap.innerHTML = `
+    <div class="admin-table-wrap">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Foydalanuvchi</th>
+            <th>Email</th>
+            <th>🪙</th>
+            <th>Status</th>
+            <th>Sana</th>
+            <th>Amallar</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${data.users.map((u, i) => `
+            <tr id="row-${u.id}" class="${u.isBanned ? 'banned-row' : ''}">
+              <td style="color:var(--muted)">${(page-1)*15+i+1}</td>
+              <td>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <div class="admin-avatar">${(u.username||'?')[0].toUpperCase()}</div>
+                  <div>
+                    <div style="font-weight:600">${u.username}</div>
+                    ${u.isAdmin ? '<span class="badge-admin">Admin</span>' : ''}
+                    ${u.isBanned ? '<span class="badge-ban">Ban</span>' : ''}
+                  </div>
+                </div>
+              </td>
+              <td style="color:var(--muted);font-size:0.85rem">${u.email}</td>
+              <td>
+                <div style="display:flex;align-items:center;gap:4px">
+                  <span id="coins-${u.id}" style="font-weight:600;color:var(--green)">${u.coins}</span>
+                  <button class="admin-icon-btn" onclick="editCoins('${u.id}', ${u.coins})" title="Coinni tahrirlash">✏️</button>
+                </div>
+              </td>
+              <td>
+                <span style="font-size:0.8rem;color:var(--muted)">${u.lang?.toUpperCase() || '—'}</span>
+              </td>
+              <td style="font-size:0.8rem;color:var(--muted)">
+                ${u.created_at ? new Date(u.created_at).toLocaleDateString() : '—'}
+              </td>
+              <td>
+                <div style="display:flex;gap:4px;flex-wrap:wrap">
+                  <button class="admin-btn ${u.isAdmin ? 'admin-btn-warn' : 'admin-btn-ok'}"
+                    onclick="toggleAdmin('${u.id}', ${!u.isAdmin})"
+                    title="${u.isAdmin ? 'Admin huquqini olish' : 'Admin qilish'}">
+                    ${u.isAdmin ? '👑 Admin' : '👤 User'}
+                  </button>
+                  <button class="admin-btn ${u.isBanned ? 'admin-btn-ok' : 'admin-btn-danger'}"
+                    onclick="toggleBan('${u.id}', ${!u.isBanned})"
+                    title="${u.isBanned ? 'Blokdan chiqarish' : 'Bloklash'}">
+                    ${u.isBanned ? '✅ Ochish' : '🚫 Ban'}
+                  </button>
+                  <button class="admin-btn admin-btn-danger" onclick="deleteUser('${u.id}', '${u.username}')" title="O'chirish">🗑️</button>
+                </div>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div style="color:var(--muted);font-size:0.85rem;padding:8px 4px">
+      Jami: <b>${data.total}</b> ta foydalanuvchi
+    </div>
+  `;
+
+  // Pagination
+  const pagEl = document.getElementById('admin-pagination');
+  if (pagEl && data.pages > 1) {
+    pagEl.innerHTML = Array.from({ length: data.pages }, (_, i) => i + 1).map(p => `
+      <button class="admin-btn ${p === page ? 'admin-btn-ok' : ''}" onclick="loadAdminUsers(${p})">${p}</button>
+    `).join('');
+  } else if (pagEl) {
+    pagEl.innerHTML = '';
+  }
+}
+
+function adminSearch() {
+  clearTimeout(adminSearchTimeout);
+  adminSearchTimeout = setTimeout(() => loadAdminUsers(1), 400);
+}
+
+async function editCoins(userId, current) {
+  const val = prompt(`🪙 Yangi coin miqdori (hozir: ${current}):`, current);
+  if (val === null || val === '') return;
+  const coins = parseInt(val);
+  if (isNaN(coins) || coins < 0) { alert('Noto\'g\'ri son'); return; }
+
+  const res = await api(`/admin/users/${userId}/coins`, {
+    method: 'PUT',
+    body: JSON.stringify({ coins })
+  });
+  if (res.success) {
+    const el = document.getElementById(`coins-${userId}`);
+    if (el) el.textContent = coins;
+    showToast(`✅ Coin yangilandi: ${coins}`);
+  } else {
+    showToast('❌ ' + (res.error || 'Xato'), 'error');
+  }
+}
+
+async function toggleAdmin(userId, makeAdmin) {
+  const ok = confirm(makeAdmin ? '👑 Bu foydalanuvchini admin qilishni tasdiqlaysizmi?' : '⚠️ Admin huquqini olishni tasdiqlaysizmi?');
+  if (!ok) return;
+  const res = await api(`/admin/users/${userId}/admin`, {
+    method: 'PUT',
+    body: JSON.stringify({ isAdmin: makeAdmin })
+  });
+  if (res.success) {
+    showToast(makeAdmin ? '✅ Admin qilindi' : '✅ Admin huquqi olindi');
+    loadAdminUsers(adminPage);
+  } else {
+    showToast('❌ ' + (res.error || 'Xato'), 'error');
+  }
+}
+
+async function toggleBan(userId, ban) {
+  const ok = confirm(ban ? '🚫 Foydalanuvchini bloklashni tasdiqlaysizmi?' : '✅ Blokdan chiqarishni tasdiqlaysizmi?');
+  if (!ok) return;
+  const res = await api(`/admin/users/${userId}/ban`, {
+    method: 'PUT',
+    body: JSON.stringify({ isBanned: ban })
+  });
+  if (res.success) {
+    showToast(ban ? '🚫 Bloklandi' : '✅ Blok ochildi');
+    loadAdminUsers(adminPage);
+  } else {
+    showToast('❌ ' + (res.error || 'Xato'), 'error');
+  }
+}
+
+async function deleteUser(userId, username) {
+  const ok = confirm(`⚠️ "${username}" foydalanuvchisini o'chirishni tasdiqlaysizmi?\nBu amal qaytarilmaydi!`);
+  if (!ok) return;
+  const ok2 = confirm(`Ishonchingiz komilmi? "${username}" o'chiriladi.`);
+  if (!ok2) return;
+  const res = await api(`/admin/users/${userId}`, { method: 'DELETE' });
+  if (res.success) {
+    showToast(`✅ "${username}" o'chirildi`);
+    loadAdminUsers(adminPage);
+  } else {
+    showToast('❌ ' + (res.error || 'Xato'), 'error');
+  }
+}
+
+function showToast(msg, type = 'success') {
+  const toast = document.getElementById('toast');
+  if (!toast) return;
+  toast.textContent = msg;
+  toast.className = `toast ${type} show`;
+  setTimeout(() => toast.classList.remove('show'), 3000);
+}
+
 // ==================== SUPPORT ====================
 function renderSupport() {
   const el = document.getElementById('page-support');
@@ -1155,6 +1403,8 @@ async function init() {
   document.getElementById('nav-register').addEventListener('click', () => { switchAuthTab('register'); showPage('auth'); closeMobileMenu(); });
   document.getElementById('nav-leaderboard').addEventListener('click', () => { showPage('leaderboard'); closeMobileMenu(); });
   document.getElementById('nav-support').addEventListener('click', () => { showPage('support'); closeMobileMenu(); });
+  document.getElementById('nav-profile').addEventListener('click', () => { showPage('profile'); closeMobileMenu(); });
+  document.getElementById('nav-admin').addEventListener('click', () => { showPage('admin'); closeMobileMenu(); });
   document.getElementById('hamburger').addEventListener('click', toggleMobileMenu);
 
   setLang(state.lang);
