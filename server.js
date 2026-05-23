@@ -1,3 +1,4 @@
+require('dotenv').config(); // .env faylini yuklash (lokal ishlab chiqish uchun)
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
@@ -5,7 +6,8 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-if (!process.env.MONGODB_URI) {
+const isLocal = process.env.USE_LOCAL_DB === 'true' || !process.env.MONGODB_URI;
+if (!isLocal && !process.env.MONGODB_URI) {
   console.error('❌ MONGODB_URI environment variable topilmadi!');
   console.error('   Render Dashboard → Environment → MONGODB_URI ni qo\'shing');
   process.exit(1);
