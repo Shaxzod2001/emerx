@@ -30,15 +30,24 @@ async function api(path, opts = {}) {
   try {
     const res = await fetch(API + path, { headers, ...opts });
     const ct = res.headers.get('content-type') || '';
+
+    // Content-type JSON emas (HTML xato sahifasi, 502, 503 va h.k.)
     if (!ct.includes('application/json')) {
-      // Server HTML xato sahifasi qaytardi (502, 503 va h.k.)
-      console.warn(`[API] Non-JSON response from ${path} (${res.status})`);
-      return { error: `Server xatosi (${res.status}). Render.com qayta ishga tushmoqda, bir daqiqa kuting.` };
+      console.warn(`[API] Non-JSON: ${path} → ${res.status}`);
+      return { error: `Server ${res.status === 503 || res.status === 502 ? 'qayta ishga tushmoqda, 1 daqiqa kuting' : 'xatosi (' + res.status + ')'}` };
     }
-    return await res.json();
+
+    // Bo'sh body — json() "Unexpected end of JSON input" tashlaydi
+    const text = await res.text();
+    if (!text || !text.trim()) {
+      console.warn(`[API] Bo'sh response: ${path}`);
+      return { error: 'Server bo\'sh javob qaytardi' };
+    }
+
+    return JSON.parse(text);
   } catch (e) {
     console.error(`[API] Xato: ${path}`, e.message);
-    return { error: 'Tarmoq xatosi. Internet aloqangizni tekshiring.' };
+    return { error: 'Tarmoq xatosi. Qayta urinib ko\'ring.' };
   }
 }
 
@@ -232,19 +241,26 @@ function handleGetStarted() {
 async function loadCourses() {
   if (state.courses.length) return;
   const data = await api('/courses');
-  state.courses = data;
+  state.courses = Array.isArray(data) ? data : [];
 }
 
 async function loadProgress() {
   if (!state.user) return;
-  const data = await api('/progress/my');
-  state.progress = data;
-  const stats = await api('/progress/stats');
-  state.stats = stats;
-  if (stats.coins !== undefined) {
-    state.coins = stats.coins;
-    const navCoins = document.getElementById('nav-coins');
-    if (navCoins) navCoins.textContent = state.coins;
+  try {
+    const data = await api('/progress/my');
+    state.progress = Array.isArray(data) ? data : [];
+    const stats = await api('/progress/stats');
+    if (stats && !stats.error) {
+      state.stats = stats;
+      if (stats.coins !== undefined) {
+        state.coins = stats.coins;
+        const navCoins = document.getElementById('nav-coins');
+        if (navCoins) navCoins.textContent = state.coins;
+      }
+    }
+  } catch (e) {
+    console.warn('loadProgress xatosi:', e.message);
+    state.progress = [];
   }
 }
 
@@ -899,9 +915,14 @@ async function init() {
 document.addEventListener('DOMContentLoaded', () => {
   init().catch(err => {
     console.error('Init xatosi:', err);
+    // Foydalanuvchiga texnik xabar emas, tushunarli xabar ko'rsatamiz
+    const isJsonErr = err.message && err.message.toLowerCase().includes('json');
+    const msg = isJsonErr
+      ? '⚠️ Server hozir yuklanmoqda. 30 soniyadan keyin sahifani yangilang (F5)'
+      : `❌ Xato: ${err.message}`;
     document.body.insertAdjacentHTML('afterbegin',
-      `<div style="position:fixed;top:64px;left:0;right:0;background:#ff4444;color:#fff;padding:12px 20px;z-index:9999;font-family:monospace;font-size:13px">
-        ❌ Init xatosi: ${err.message}
+      `<div id="init-err" style="position:fixed;top:64px;left:0;right:0;background:${isJsonErr ? '#b45309' : '#ff4444'};color:#fff;padding:12px 20px;z-index:9999;font-size:14px;text-align:center;cursor:pointer" onclick="location.reload()">
+        ${msg} — <u>bosing va yangilang</u>
       </div>`
     );
   });
