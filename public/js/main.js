@@ -17,7 +17,8 @@ let state = {
   progress: [],
   currentCourse: null,
   currentLesson: null,
-  stats: { completed: 0, quizAvg: 0 }
+  stats: { completed: 0, quizAvg: 0 },
+  coins: 0
 };
 
 window.currentLang = state.lang;
@@ -112,6 +113,8 @@ function updateNavbar() {
     navAuth.style.display = 'none';
     navUser.style.display = 'flex';
     document.getElementById('nav-username').textContent = state.user.username;
+    const navCoins = document.getElementById('nav-coins');
+    if (navCoins) navCoins.textContent = state.coins;
   } else {
     navAuth.style.display = 'flex';
     navUser.style.display = 'none';
@@ -137,6 +140,8 @@ function renderCurrentPage() {
     case 'dashboard': renderDashboard(); break;
     case 'auth': renderAuth(); break;
     case 'lesson': renderLessonPage(); break;
+    case 'leaderboard': renderLeaderboard(); break;
+    case 'support': renderSupport(); break;
   }
   updateNavbar();
 }
@@ -217,6 +222,11 @@ async function loadProgress() {
   state.progress = data;
   const stats = await api('/progress/stats');
   state.stats = stats;
+  if (stats.coins !== undefined) {
+    state.coins = stats.coins;
+    const navCoins = document.getElementById('nav-coins');
+    if (navCoins) navCoins.textContent = state.coins;
+  }
 }
 
 async function renderCourses() {
@@ -459,12 +469,15 @@ function selectAnswer(qi, oi, correct, lessonId, total) {
 
 async function completeLesson(courseId, lessonId) {
   if (!state.user) { showPage('auth'); return; }
-  await api('/progress/complete', {
+  const res = await api('/progress/complete', {
     method: 'POST',
     body: JSON.stringify({ lesson_id: lessonId, course_id: courseId })
   });
   await loadProgress();
   showToast(t('lesson_complete_toast'));
+  if (res.coinsEarned && res.coinsEarned > 0) {
+    showCoinPopup(res.coinsEarned);
+  }
   renderLessonPage();
 }
 
@@ -509,6 +522,11 @@ async function renderDashboard() {
           <div class="stat-icon">🏆</div>
           <div class="stat-val">${state.courses.filter(c => c.lessons.every(l => completedIds.has(l.id))).length}</div>
           <div class="stat-lbl">Tugatilgan kurslar</div>
+        </div>
+        <div class="stat-card gold">
+          <div class="stat-icon">🪙</div>
+          <div class="stat-val">${state.coins}</div>
+          <div class="stat-lbl">${t('coins_label')}</div>
         </div>
       </div>
       <div class="roadmap-section">
@@ -680,18 +698,159 @@ function showToast(msg) {
   setTimeout(() => toast.classList.remove('show'), 3000);
 }
 
+// ==================== COIN POPUP ====================
+function showCoinPopup(amount) {
+  const el = document.getElementById('coin-popup');
+  if (!el) return;
+  el.innerHTML = `🪙 +${amount} tanga!`;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2800);
+}
+
+// ==================== MOBILE MENU ====================
+function toggleMobileMenu() {
+  const navLinks = document.getElementById('nav-links');
+  const overlay = document.getElementById('mobile-overlay');
+  const hamburger = document.getElementById('hamburger');
+  navLinks.classList.toggle('open');
+  overlay.classList.toggle('show');
+  hamburger.classList.toggle('open');
+}
+
+function closeMobileMenu() {
+  const navLinks = document.getElementById('nav-links');
+  const overlay = document.getElementById('mobile-overlay');
+  const hamburger = document.getElementById('hamburger');
+  navLinks.classList.remove('open');
+  overlay.classList.remove('show');
+  hamburger.classList.remove('open');
+}
+
+// ==================== LEADERBOARD ====================
+async function renderLeaderboard() {
+  const el = document.getElementById('page-leaderboard');
+  el.innerHTML = `<div class="leaderboard-page"><div class="spinner"></div></div>`;
+  try {
+    const top = await api('/leaderboard');
+    let myRank = null;
+    if (state.user) myRank = await api('/leaderboard/me');
+
+    const medals = ['🥇', '🥈', '🥉'];
+    el.innerHTML = `
+      <div class="leaderboard-page">
+        <div class="page-header">
+          <h1>🏆 ${t('leaderboard_title')}</h1>
+          <p>${t('leaderboard_sub')}</p>
+        </div>
+        ${myRank ? `
+          <div class="my-rank-card">
+            <div class="rank-num">#${myRank.rank}</div>
+            <div class="rank-info">
+              <h3>${myRank.username}</h3>
+              <p>${t('my_rank')}: #${myRank.rank}</p>
+            </div>
+            <div class="coins-big">🪙 ${myRank.coins}</div>
+          </div>
+        ` : `<div class="my-rank-card" style="text-align:center;justify-content:center"><p>🔒 ${t('unauthorized')}</p></div>`}
+        <div class="leaderboard-table">
+          ${top.length === 0 ? `<div class="lb-row" style="justify-content:center;color:var(--text2);grid-column:1/-1">Hali hech kim yo'q</div>` : ''}
+          ${top.map(u => {
+            const rankClass = u.rank === 1 ? 'top1' : u.rank === 2 ? 'top2' : u.rank === 3 ? 'top3' : '';
+            const isMe = state.user && u.username === state.user.username;
+            return `
+            <div class="lb-row ${rankClass} ${isMe ? 'me' : ''}">
+              <span class="lb-rank">${u.rank <= 3 ? medals[u.rank - 1] : '#' + u.rank}</span>
+              <span class="lb-name">${u.username}${isMe ? ' <span style="color:var(--green);font-size:0.75rem">(siz)</span>' : ''}</span>
+              <span class="lb-coins">🪙 ${u.coins}</span>
+            </div>
+          `}).join('')}
+        </div>
+      </div>
+    `;
+  } catch (e) {
+    el.innerHTML = `<div class="leaderboard-page"><p style="color:var(--red);text-align:center;padding:60px">❌ Yuklanmadi. Qayta urinib ko'ring.</p></div>`;
+  }
+}
+
+// ==================== SUPPORT ====================
+function renderSupport() {
+  const el = document.getElementById('page-support');
+  const faqs = [
+    { q: t('faq1_q'), a: t('faq1_a') },
+    { q: t('faq2_q'), a: t('faq2_a') },
+    { q: t('faq3_q'), a: t('faq3_a') },
+    { q: t('faq4_q'), a: t('faq4_a') },
+    { q: t('faq5_q'), a: t('faq5_a') },
+  ];
+  el.innerHTML = `
+    <div class="support-page">
+      <div class="page-header">
+        <h1>💬 ${t('support_title')}</h1>
+        <p>${t('support_sub')}</p>
+      </div>
+      <div class="support-grid">
+        <a href="https://t.me/emerx_support" target="_blank" class="support-card" style="text-decoration:none;color:inherit">
+          <div class="icon">✈️</div>
+          <h3>Telegram</h3>
+          <p>Savol yoki muammo bo'lsa, Telegram orqali murojaat qiling.</p>
+          <span>@emerx_support →</span>
+        </a>
+        <a href="mailto:support@emerx.uz" class="support-card" style="text-decoration:none;color:inherit">
+          <div class="icon">📧</div>
+          <h3>Email</h3>
+          <p>Rasmiy murojaatlar uchun elektron pochta orqali yozing.</p>
+          <span>support@emerx.uz →</span>
+        </a>
+      </div>
+      <div class="faq-section">
+        <h2>${t('faq_title')}</h2>
+        ${faqs.map((f, i) => `
+          <div class="faq-item" id="faq-${i}">
+            <button class="faq-q" onclick="toggleFaq(${i})">
+              <span>${f.q}</span>
+              <span class="arrow">▼</span>
+            </button>
+            <div class="faq-a" id="faq-a-${i}">${f.a}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function toggleFaq(i) {
+  const faqItem = document.getElementById(`faq-${i}`);
+  const faqA = document.getElementById(`faq-a-${i}`);
+  const faqQ = faqItem.querySelector('.faq-q');
+  const isOpen = faqItem.classList.contains('open');
+  // Close all
+  document.querySelectorAll('.faq-item').forEach(item => {
+    item.classList.remove('open');
+    item.querySelector('.faq-a')?.classList.remove('open');
+    item.querySelector('.faq-q')?.classList.remove('open');
+  });
+  if (!isOpen) {
+    faqItem.classList.add('open');
+    faqA.classList.add('open');
+    faqQ.classList.add('open');
+  }
+}
+
 // ==================== INIT ====================
 async function init() {
   document.querySelectorAll('.lang-btn').forEach(b => {
-    b.addEventListener('click', () => setLang(b.dataset.lang));
+    b.addEventListener('click', () => { setLang(b.dataset.lang); closeMobileMenu(); });
   });
 
-  document.getElementById('nav-logout').addEventListener('click', logout);
-  document.getElementById('nav-dashboard').addEventListener('click', () => showPage('dashboard'));
-  document.getElementById('nav-courses').addEventListener('click', () => showPage('courses'));
-  document.getElementById('nav-home').addEventListener('click', () => showPage('home'));
-  document.getElementById('nav-login').addEventListener('click', () => showPage('auth'));
-  document.getElementById('nav-register').addEventListener('click', () => { switchAuthTab('register'); showPage('auth'); });
+  document.getElementById('nav-logout').addEventListener('click', () => { logout(); closeMobileMenu(); });
+  document.getElementById('nav-dashboard').addEventListener('click', () => { showPage('dashboard'); closeMobileMenu(); });
+  document.getElementById('nav-courses').addEventListener('click', () => { showPage('courses'); closeMobileMenu(); });
+  document.getElementById('nav-home').addEventListener('click', () => { showPage('home'); closeMobileMenu(); });
+  document.getElementById('nav-login').addEventListener('click', () => { showPage('auth'); closeMobileMenu(); });
+  document.getElementById('nav-register').addEventListener('click', () => { switchAuthTab('register'); showPage('auth'); closeMobileMenu(); });
+  document.getElementById('nav-leaderboard').addEventListener('click', () => { showPage('leaderboard'); closeMobileMenu(); });
+  document.getElementById('nav-support').addEventListener('click', () => { showPage('support'); closeMobileMenu(); });
+  document.getElementById('hamburger').addEventListener('click', toggleMobileMenu);
 
   setLang(state.lang);
   await initAuth();

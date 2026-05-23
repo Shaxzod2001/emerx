@@ -87,4 +87,4 @@ const progress = makeCollection('progress', [
 
 const quizResults = makeCollection('quiz_results');
 
-module.exports = { users, progress, quizResults };
+module.exports = { users, progress, quizResults, getDb };

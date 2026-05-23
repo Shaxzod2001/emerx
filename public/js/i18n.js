@@ -87,6 +87,31 @@ const T = {
     loading: "Yuklanmoqda...",
     error: "Xatolik yuz berdi",
     unauthorized: "Iltimos avval tizimga kiring",
+
+    // Leaderboard
+    leaderboard_title: "Reyting Jadvali",
+    leaderboard_sub: "Eng ko'p tanga to'plagan o'quvchilar",
+    my_rank: "Sizning o'rningiz",
+    my_coins: "Tangalaringiz",
+    my_name: "Ism",
+    lb_user: "Foydalanuvchi",
+    lb_coins: "Tangalar",
+
+    // Support
+    support_title: "Yordam Markazi",
+    support_sub: "Savollaringiz bormi? Biz doim yordamga tayyormiz!",
+    faq_title: "Ko'p beriladigan savollar",
+    faq1_q: "EmerX'ga qanday ro'yxatdan o'taman?",
+    faq1_a: "Sayt yuqorisidagi 'Ro'yxat' tugmasini bosing, ma'lumotlaringizni kiriting va ro'yxatdan o'ting.",
+    faq2_q: "Kurslarni tartibda o'tishim shartmi?",
+    faq2_a: "Ha, ketma-ketlik muhim. Har bir dars va kursni tugatamasdan keyingisiga o'ta olmaysiz.",
+    faq3_q: "Tangalar nima uchun kerak?",
+    faq3_a: "Har bir dars tugaganida 10 tanga olasiz. Test yutganingizda 5 ta qo'shimcha tanga beriladi. Tangalar reyting jadvalida o'rningizni belgilaydi.",
+    faq4_q: "Sertifikat olish mumkinmi?",
+    faq4_a: "Ha! Har bir darajani tugatganingizda sertifikat olasiz. Jami 4 ta sertifikat mavjud.",
+    faq5_q: "Parolimni unutdim, nima qilaman?",
+    faq5_a: "Telegram orqali bizga yozing, biz parolingizni tiklashga yordam beramiz.",
+    coins_label: "Tangalar",
   },
 
   ru: {
@@ -169,6 +194,31 @@ const T = {
     loading: "Загрузка...",
     error: "Произошла ошибка",
     unauthorized: "Пожалуйста, войдите в систему",
+
+    // Leaderboard
+    leaderboard_title: "Таблица лидеров",
+    leaderboard_sub: "Студенты с наибольшим количеством монет",
+    my_rank: "Ваше место",
+    my_coins: "Ваши монеты",
+    my_name: "Имя",
+    lb_user: "Пользователь",
+    lb_coins: "Монеты",
+
+    // Support
+    support_title: "Центр поддержки",
+    support_sub: "Есть вопросы? Мы всегда готовы помочь!",
+    faq_title: "Часто задаваемые вопросы",
+    faq1_q: "Как зарегистрироваться в EmerX?",
+    faq1_a: "Нажмите кнопку 'Регистрация' вверху сайта, введите свои данные и зарегистрируйтесь.",
+    faq2_q: "Нужно ли проходить курсы по порядку?",
+    faq2_a: "Да, порядок важен. Вы не можете перейти к следующему уроку или курсу, не завершив предыдущий.",
+    faq3_q: "Зачем нужны монеты?",
+    faq3_a: "За каждый урок вы получаете 10 монет. За прохождение теста даётся дополнительно 5 монет. Монеты определяют ваше место в таблице лидеров.",
+    faq4_q: "Можно ли получить сертификат?",
+    faq4_a: "Да! После завершения каждого уровня вы получаете сертификат. Всего 4 сертификата.",
+    faq5_q: "Я забыл пароль, что делать?",
+    faq5_a: "Напишите нам в Telegram, мы поможем восстановить доступ.",
+    coins_label: "Монеты",
   },
 
   en: {
@@ -251,6 +301,31 @@ const T = {
     loading: "Loading...",
     error: "An error occurred",
     unauthorized: "Please log in first",
+
+    // Leaderboard
+    leaderboard_title: "Leaderboard",
+    leaderboard_sub: "Top students by coins earned",
+    my_rank: "Your Rank",
+    my_coins: "Your Coins",
+    my_name: "Name",
+    lb_user: "User",
+    lb_coins: "Coins",
+
+    // Support
+    support_title: "Help Center",
+    support_sub: "Have questions? We're always here to help!",
+    faq_title: "Frequently Asked Questions",
+    faq1_q: "How do I register on EmerX?",
+    faq1_a: "Click the 'Register' button at the top of the site, enter your details and sign up.",
+    faq2_q: "Do I need to complete courses in order?",
+    faq2_a: "Yes, the sequence is important. You can't move to the next lesson or course without completing the previous one.",
+    faq3_q: "What are coins for?",
+    faq3_a: "You earn 10 coins for each completed lesson. Passing a quiz earns you an extra 5 coins. Coins determine your ranking on the leaderboard.",
+    faq4_q: "Can I get a certificate?",
+    faq4_a: "Yes! You receive a certificate after completing each level. There are 4 certificates total.",
+    faq5_q: "I forgot my password, what should I do?",
+    faq5_a: "Write to us on Telegram and we'll help you recover access.",
+    coins_label: "Coins",
   }
 };
 
