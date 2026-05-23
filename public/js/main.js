@@ -152,7 +152,15 @@ function updateNavbar() {
   if (state.user) {
     navAuth.style.display = 'none';
     navUser.style.display = 'flex';
-    document.getElementById('nav-username').textContent = state.user.username;
+    const navUsername = document.getElementById('nav-username');
+    if (navUsername) navUsername.textContent = state.user.username;
+    const navAvatar = document.getElementById('nav-avatar');
+    if (navAvatar && state.user.avatar) {
+      navAvatar.src = state.user.avatar;
+      navAvatar.style.display = 'block';
+    } else if (navAvatar) {
+      navAvatar.style.display = 'none';
+    }
     const navCoins = document.getElementById('nav-coins');
     if (navCoins) navCoins.textContent = state.coins;
   } else {
@@ -182,6 +190,7 @@ function renderCurrentPage() {
     case 'lesson': renderLessonPage(); break;
     case 'leaderboard': renderLeaderboard(); break;
     case 'support': renderSupport(); break;
+    case 'profile': renderProfile(); break;
   }
   updateNavbar();
 }
@@ -843,6 +852,230 @@ async function renderLeaderboard() {
   }
 }
 
+// ==================== PROFILE PAGE ====================
+async function renderProfile() {
+  const el = document.getElementById('page-profile');
+  el.innerHTML = `<div class="profile-page"><p style="color:var(--muted);text-align:center;padding:60px">⏳ Yuklanmoqda...</p></div>`;
+
+  const data = await api('/profile');
+  if (data.error) {
+    el.innerHTML = `<div class="profile-page"><p style="color:var(--red);text-align:center;padding:60px">❌ ${data.error}</p></div>`;
+    return;
+  }
+
+  const avatarHtml = data.avatar
+    ? `<img src="${data.avatar}" alt="avatar">`
+    : `<span>${(data.username || 'U')[0].toUpperCase()}</span>`;
+
+  const joinDate = data.created_at
+    ? new Date(data.created_at).toLocaleDateString(state.lang === 'en' ? 'en-US' : state.lang === 'ru' ? 'ru-RU' : 'uz-UZ', { year:'numeric', month:'long', day:'numeric' })
+    : '—';
+
+  el.innerHTML = `
+    <div class="profile-page">
+
+      <!-- HERO: Avatar + Info -->
+      <div class="profile-hero">
+        <div class="profile-avatar-wrap">
+          <div class="profile-avatar" id="avatar-preview">${avatarHtml}</div>
+          <button class="avatar-upload-btn" onclick="document.getElementById('avatar-file-input').click()" title="${t('profile_avatar')}">📷</button>
+          <input type="file" id="avatar-file-input" accept="image/*" style="display:none" onchange="handleAvatarUpload(event)">
+        </div>
+
+        <div class="profile-info">
+          <h2 id="profile-display-name">${data.username}</h2>
+          <div class="profile-email">📧 ${data.email}</div>
+          ${data.bio ? `<div class="profile-bio-display">"${data.bio}"</div>` : ''}
+          <div class="profile-member">📅 ${t('profile_member_since')}: ${joinDate}</div>
+          <div id="avatar-status" class="avatar-upload-hint"></div>
+        </div>
+      </div>
+
+      <!-- STATS -->
+      <div class="profile-stats-row">
+        <div class="profile-stat">
+          <div class="stat-val">🪙 ${data.coins || 0}</div>
+          <div class="stat-lbl">${t('coins_label')}</div>
+        </div>
+        <div class="profile-stat">
+          <div class="stat-val">✅ ${data.stats?.completed || 0}</div>
+          <div class="stat-lbl">${t('completed_lessons')}</div>
+        </div>
+        <div class="profile-stat">
+          <div class="stat-val">📊 ${data.stats?.quizAvg || 0}%</div>
+          <div class="stat-lbl">${t('quiz_avg')}</div>
+        </div>
+      </div>
+
+      <!-- PROFIL TAHRIRLASH -->
+      <div class="profile-card">
+        <h3>✏️ ${t('profile_edit')}</h3>
+        <div id="profile-edit-msg" class="profile-msg"></div>
+        <div class="profile-form-group">
+          <label>${t('profile_username')}</label>
+          <input type="text" id="edit-username" value="${data.username}" maxlength="30" placeholder="username">
+        </div>
+        <div class="profile-form-group">
+          <label>${t('profile_bio')} <span style="color:var(--muted);font-size:0.8rem">(max 200)</span></label>
+          <textarea id="edit-bio" maxlength="200" placeholder="${t('profile_bio_placeholder')}">${data.bio || ''}</textarea>
+        </div>
+        <button class="btn btn-primary" onclick="saveProfileEdit()" id="profile-save-btn" style="width:100%">
+          💾 ${t('profile_save')}
+        </button>
+      </div>
+
+      <!-- PAROL O'ZGARTIRISH -->
+      <div class="profile-card">
+        <h3>🔒 ${t('profile_password')}</h3>
+        <div id="profile-pass-msg" class="profile-msg"></div>
+        <div class="profile-form-group">
+          <label>${t('profile_cur_pass')}</label>
+          <input type="password" id="cur-password" placeholder="••••••••">
+        </div>
+        <div class="profile-form-group">
+          <label>${t('profile_new_pass')}</label>
+          <input type="password" id="new-password" placeholder="••••••••">
+        </div>
+        <div class="profile-form-group">
+          <label>${t('profile_confirm_pass')}</label>
+          <input type="password" id="confirm-password" placeholder="••••••••">
+        </div>
+        <button class="btn btn-primary" onclick="savePasswordChange()" id="pass-save-btn" style="width:100%">
+          🔑 ${t('profile_change_pass')}
+        </button>
+      </div>
+
+    </div>
+  `;
+}
+
+async function handleAvatarUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const statusEl = document.getElementById('avatar-status');
+  statusEl.textContent = t('avatar_uploading');
+  statusEl.style.color = 'var(--muted)';
+
+  // Canvas orqali 128x128 ga resize va compress
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    const img = new Image();
+    img.onload = async () => {
+      const canvas = document.createElement('canvas');
+      const SIZE = 128;
+      canvas.width = SIZE;
+      canvas.height = SIZE;
+      const ctx = canvas.getContext('2d');
+
+      // Crop to square (center)
+      const minSide = Math.min(img.width, img.height);
+      const sx = (img.width - minSide) / 2;
+      const sy = (img.height - minSide) / 2;
+      ctx.drawImage(img, sx, sy, minSide, minSide, 0, 0, SIZE, SIZE);
+
+      const base64 = canvas.toDataURL('image/jpeg', 0.85);
+
+      // Upload
+      const res = await api('/profile/avatar', {
+        method: 'PUT',
+        body: JSON.stringify({ avatar: base64 })
+      });
+
+      if (res.success) {
+        // Preview yangilash
+        const preview = document.getElementById('avatar-preview');
+        preview.innerHTML = `<img src="${base64}" alt="avatar">`;
+        // Navbar avatar
+        const navAvatar = document.getElementById('nav-avatar');
+        if (navAvatar) { navAvatar.src = base64; navAvatar.style.display = 'block'; }
+        // State yangilash
+        if (state.user) state.user.avatar = base64;
+        statusEl.textContent = t('avatar_saved');
+        statusEl.style.color = 'var(--green)';
+      } else {
+        statusEl.textContent = '❌ ' + (res.error || 'Xato');
+        statusEl.style.color = 'var(--red)';
+      }
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+async function saveProfileEdit() {
+  const username = document.getElementById('edit-username').value.trim();
+  const bio = document.getElementById('edit-bio').value;
+  const msgEl = document.getElementById('profile-edit-msg');
+  const btn = document.getElementById('profile-save-btn');
+
+  btn.disabled = true;
+  btn.textContent = t('profile_saving');
+  msgEl.className = 'profile-msg';
+
+  const res = await api('/profile', {
+    method: 'PUT',
+    body: JSON.stringify({ username, bio })
+  });
+
+  btn.disabled = false;
+  btn.innerHTML = `💾 ${t('profile_save')}`;
+
+  if (res.success) {
+    msgEl.className = 'profile-msg success';
+    msgEl.textContent = t('profile_saved');
+    // State + navbar yangilash
+    if (state.user) {
+      if (res.username) state.user.username = res.username;
+      document.getElementById('profile-display-name').textContent = res.username || username;
+      document.getElementById('nav-username').textContent = res.username || username;
+    }
+    setTimeout(() => { msgEl.className = 'profile-msg'; }, 3000);
+  } else {
+    msgEl.className = 'profile-msg error';
+    msgEl.textContent = res.error || 'Xato yuz berdi';
+  }
+}
+
+async function savePasswordChange() {
+  const cur = document.getElementById('cur-password').value;
+  const nw = document.getElementById('new-password').value;
+  const cf = document.getElementById('confirm-password').value;
+  const msgEl = document.getElementById('profile-pass-msg');
+  const btn = document.getElementById('pass-save-btn');
+
+  msgEl.className = 'profile-msg';
+
+  if (nw !== cf) {
+    msgEl.className = 'profile-msg error';
+    msgEl.textContent = t('pass_mismatch');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = t('profile_saving');
+
+  const res = await api('/profile/password', {
+    method: 'PUT',
+    body: JSON.stringify({ currentPassword: cur, newPassword: nw })
+  });
+
+  btn.disabled = false;
+  btn.innerHTML = `🔑 ${t('profile_change_pass')}`;
+
+  if (res.success) {
+    msgEl.className = 'profile-msg success';
+    msgEl.textContent = t('pass_changed');
+    document.getElementById('cur-password').value = '';
+    document.getElementById('new-password').value = '';
+    document.getElementById('confirm-password').value = '';
+    setTimeout(() => { msgEl.className = 'profile-msg'; }, 3000);
+  } else {
+    msgEl.className = 'profile-msg error';
+    msgEl.textContent = res.error || 'Xato yuz berdi';
+  }
+}
+
 // ==================== SUPPORT ====================
 function renderSupport() {
   const el = document.getElementById('page-support');
@@ -914,6 +1147,7 @@ async function init() {
   });
 
   document.getElementById('nav-logout').addEventListener('click', () => { logout(); closeMobileMenu(); });
+  document.getElementById('nav-profile').addEventListener('click', () => { showPage('profile'); closeMobileMenu(); });
   document.getElementById('nav-dashboard').addEventListener('click', () => { showPage('dashboard'); closeMobileMenu(); });
   document.getElementById('nav-courses').addEventListener('click', () => { showPage('courses'); closeMobileMenu(); });
   document.getElementById('nav-home').addEventListener('click', () => { showPage('home'); closeMobileMenu(); });
