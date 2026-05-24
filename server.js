@@ -6,11 +6,17 @@ if (process.env.NODE_ENV !== 'development') {
 }
 
 const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
 const cors = require('cors');
 const path = require('path');
+const jwt = require('jsonwebtoken');
+const { messages, users } = require('./database');
 
 const app = express();
+const server = http.createServer(app);
 const PORT = process.env.PORT || 3000;
+const JWT_SECRET = process.env.JWT_SECRET || 'emerx_secret_key_2024';
 
 const isLocal = process.env.USE_LOCAL_DB === 'true' || !process.env.MONGODB_URI;
 if (!isLocal && !process.env.MONGODB_URI) {
@@ -29,6 +35,100 @@ app.use('/api/progress', require('./routes/progress'));
 app.use('/api/leaderboard', require('./routes/leaderboard'));
 app.use('/api/profile',    require('./routes/profile'));
 app.use('/api/admin',      require('./routes/admin'));
+
+// ==================== SOCKET.IO — GLOBAL CHAT ====================
+const io = new Server(server, {
+  cors: { origin: '*', methods: ['GET', 'POST'] },
+  pingTimeout: 60000,
+  pingInterval: 25000,
+});
+
+// Rate limit: har bir user uchun oxirgi xabar vaqti
+const lastMessageTime = new Map();
+const RATE_LIMIT_MS = 3000; // 3 soniya
+const MAX_MSG_LENGTH = 300;
+const HISTORY_COUNT = 80;
+
+io.on('connection', async (socket) => {
+  // JWT tekshiruv (ixtiyoriy — guest ko'ra oladi, lekin yoza olmaydi)
+  let chatUser = null;
+  const token = socket.handshake.auth?.token;
+  if (token) {
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET);
+      // Banlanganmi tekshirish
+      const dbUser = await users.findOneAsync({ _id: decoded.id });
+      if (dbUser && !dbUser.isBanned) {
+        chatUser = { id: decoded.id, username: decoded.username, avatar: dbUser.avatar || null };
+      }
+    } catch {}
+  }
+
+  // Tarix yuborish (oxirgi HISTORY_COUNT ta xabar)
+  try {
+    const history = await messages.findAsync({});
+    const sorted = history
+      .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+      .slice(-HISTORY_COUNT);
+    socket.emit('chat:history', sorted);
+  } catch (e) {
+    console.error('chat history xato:', e.message);
+    socket.emit('chat:history', []);
+  }
+
+  // Yangi xabar
+  socket.on('chat:send', async (text) => {
+    if (!chatUser) {
+      return socket.emit('chat:error', 'Xabar yuborish uchun tizimga kiring');
+    }
+
+    // Rate limit
+    const now = Date.now();
+    const last = lastMessageTime.get(chatUser.id) || 0;
+    if (now - last < RATE_LIMIT_MS) {
+      return socket.emit('chat:error', `Tez yuborayabsiz. ${Math.ceil((RATE_LIMIT_MS - (now - last)) / 1000)}s kuting`);
+    }
+
+    // Validatsiya
+    if (!text || typeof text !== 'string') return;
+    const trimmed = text.trim();
+    if (!trimmed || trimmed.length > MAX_MSG_LENGTH) {
+      return socket.emit('chat:error', `Xabar 1-${MAX_MSG_LENGTH} ta belgidan iborat bo'lishi kerak`);
+    }
+
+    lastMessageTime.set(chatUser.id, now);
+
+    try {
+      const msg = await messages.insertAsync({
+        userId: chatUser.id,
+        username: chatUser.username,
+        avatar: chatUser.avatar,
+        text: trimmed,
+        createdAt: new Date().toISOString(),
+      });
+      io.emit('chat:message', msg);
+    } catch (e) {
+      console.error('chat insert xato:', e.message);
+      socket.emit('chat:error', 'Xabar yuborilmadi. Qayta urinib ko\'ring.');
+    }
+  });
+
+  // Xabar o'chirish (faqat admin)
+  socket.on('chat:delete', async (msgId) => {
+    if (!chatUser) return;
+    try {
+      const dbUser = await users.findOneAsync({ _id: chatUser.id });
+      const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase());
+      const isAdmin = (dbUser && dbUser.isAdmin) || adminEmails.includes((dbUser?.email || '').toLowerCase());
+      if (!isAdmin) return socket.emit('chat:error', 'Ruxsat yo\'q');
+
+      await messages.updateAsync({ _id: msgId }, { $set: { deleted: true } });
+      io.emit('chat:deleted', msgId);
+    } catch (e) {
+      console.error('chat delete xato:', e.message);
+    }
+  });
+});
 
 // Diagnostika — Node.js versiyasi va Atlas xato
 app.get('/api/diag', async (req, res) => {
@@ -74,7 +174,6 @@ app.get('/api/health', async (req, res) => {
     info.dbStatus = 'ok';
   } else if (checkAtlas) {
     try {
-      // ?retry=1 bo'lsa majburan qayta ulanadi
       const force = req.query.retry === '1';
       const ok = await checkAtlas(force);
       if (ok) {
@@ -114,6 +213,6 @@ app.use((err, req, res, next) => {
   res.status(500).sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`\n🛡️  EmerX Server running at http://localhost:${PORT}\n`);
 });

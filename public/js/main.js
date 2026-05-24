@@ -93,6 +93,9 @@ async function login(email, password) {
     });
     // Progressni yuklash (navbardagi coinlar uchun)
     await loadProgress();
+    // Chat socketni yangi token bilan qayta ulash
+    disconnectChatSocket();
+    initChatSocket();
     return { ok: true };
   }
   return { ok: false, error: res.error || 'Kirish amalga oshmadi' };
@@ -127,6 +130,8 @@ function logout() {
   state.currentCourse = null;
   state.currentLesson = null;
   localStorage.removeItem('emerx_token');
+  // Chatni qayta ulash uchun socketni uzamiz
+  disconnectChatSocket();
   updateNavbar();
   showPage('home');
 }
@@ -155,7 +160,8 @@ function updateNavbar() {
   setText('nav-home',        '🏠 ' + t('home'));
   setText('nav-courses',     '📚 ' + t('courses'));
   setText('nav-leaderboard', '🏆 ' + t('nav_leaderboard'));
-  setText('nav-support',     '💬 ' + t('nav_support'));
+  setText('nav-chat',        '💬 ' + t('nav_chat'));
+  setText('nav-support',     '❓ ' + t('nav_support'));
   setText('nav-dashboard',   '📊 ' + t('dashboard'));
   setText('nav-login',       t('nav_login'));
   setText('nav-register',    t('nav_register'));
@@ -209,6 +215,7 @@ function renderCurrentPage() {
     case 'support': renderSupport(); break;
     case 'profile': renderProfile(); break;
     case 'admin':   renderAdmin(); break;
+    case 'chat':    renderChat(); break;
   }
   updateNavbar();
 }
@@ -1759,6 +1766,252 @@ function showToast(msg, type = 'success') {
   setTimeout(() => toast.classList.remove('show'), 3000);
 }
 
+// ==================== GLOBAL CHAT ====================
+let chatSocket = null;
+let chatConnected = false;
+let chatIsAdmin = false;
+
+function initChatSocket() {
+  if (chatSocket) return; // allaqachon ulangan
+
+  chatSocket = io({ auth: { token: state.token || null }, transports: ['websocket', 'polling'] });
+
+  chatSocket.on('connect', () => {
+    chatConnected = true;
+    updateChatStatus('online');
+  });
+
+  chatSocket.on('disconnect', () => {
+    chatConnected = false;
+    updateChatStatus('offline');
+  });
+
+  chatSocket.on('connect_error', () => {
+    chatConnected = false;
+    updateChatStatus('offline');
+  });
+
+  // Tarix — sahifa ochilganda bir marta keladi
+  chatSocket.on('chat:history', (msgs) => {
+    const listEl = document.getElementById('chat-messages');
+    if (!listEl) return;
+    listEl.innerHTML = '';
+    if (!msgs.length) {
+      listEl.innerHTML = `<div class="chat-empty">${t('chat_empty')}</div>`;
+      return;
+    }
+    msgs.filter(m => !m.deleted).forEach(m => appendChatMessage(m, false));
+    scrollChatToBottom();
+  });
+
+  // Yangi xabar (broadcast)
+  chatSocket.on('chat:message', (msg) => {
+    const listEl = document.getElementById('chat-messages');
+    if (!listEl) return;
+    const emptyEl = listEl.querySelector('.chat-empty');
+    if (emptyEl) emptyEl.remove();
+    appendChatMessage(msg, true);
+    scrollChatToBottom();
+    // Agar chat sahifasi ochiq emas bo'lsa — bildirish
+    if (currentPage !== 'chat' && msg.userId !== state.user?.id) {
+      showChatBadge();
+    }
+  });
+
+  // O'chirilgan xabar
+  chatSocket.on('chat:deleted', (msgId) => {
+    const el = document.getElementById(`cmsg-${msgId}`);
+    if (el) {
+      el.querySelector('.chat-msg-text').textContent = t('chat_deleted');
+      el.classList.add('deleted');
+    }
+  });
+
+  // Xato
+  chatSocket.on('chat:error', (err) => {
+    showChatError(err);
+  });
+}
+
+function disconnectChatSocket() {
+  if (chatSocket) {
+    chatSocket.disconnect();
+    chatSocket = null;
+    chatConnected = false;
+  }
+}
+
+function updateChatStatus(status) {
+  const el = document.getElementById('chat-status');
+  if (!el) return;
+  if (status === 'online') {
+    el.textContent = '🟢 ' + t('chat_online');
+    el.style.color = 'var(--green)';
+  } else {
+    el.textContent = '🔴 ' + t('chat_offline');
+    el.style.color = 'var(--red)';
+  }
+}
+
+function appendChatMessage(msg, animate) {
+  const listEl = document.getElementById('chat-messages');
+  if (!listEl) return;
+
+  const isMe = state.user && msg.userId === state.user.id;
+  const isAdmin = msg.isAdmin;
+  const time = new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const avatarHtml = msg.avatar
+    ? `<img src="${msg.avatar}" alt="${msg.username}" class="chat-avatar-img">`
+    : `<div class="chat-avatar-letter">${(msg.username || '?')[0].toUpperCase()}</div>`;
+
+  const el = document.createElement('div');
+  el.id = `cmsg-${msg._id}`;
+  el.className = `chat-msg ${isMe ? 'chat-msg-me' : 'chat-msg-other'} ${animate ? 'chat-msg-new' : ''}`;
+  el.innerHTML = `
+    <div class="chat-avatar">${avatarHtml}</div>
+    <div class="chat-msg-body">
+      <div class="chat-msg-header">
+        <span class="chat-username ${isMe ? 'me' : ''}">${isMe ? t('chat_you') : msg.username}</span>
+        ${msg.isAdmin ? '<span class="chat-admin-badge">Admin</span>' : ''}
+        <span class="chat-time">${time}</span>
+        ${(chatIsAdmin && !isMe) ? `<button class="chat-del-btn" onclick="deleteChatMessage('${msg._id}')" title="O'chirish">🗑️</button>` : ''}
+      </div>
+      <div class="chat-msg-text">${escapeHtml(msg.text)}</div>
+    </div>
+  `;
+  listEl.appendChild(el);
+}
+
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function scrollChatToBottom() {
+  const listEl = document.getElementById('chat-messages');
+  if (listEl) listEl.scrollTop = listEl.scrollHeight;
+}
+
+function showChatError(msg) {
+  const el = document.getElementById('chat-error');
+  if (!el) return;
+  el.textContent = '⚠️ ' + msg;
+  el.style.display = 'block';
+  setTimeout(() => { el.style.display = 'none'; }, 3000);
+}
+
+let chatBadgeCount = 0;
+function showChatBadge() {
+  chatBadgeCount++;
+  const btn = document.getElementById('nav-chat');
+  if (btn) {
+    const existing = btn.querySelector('.chat-badge');
+    if (existing) { existing.textContent = chatBadgeCount; return; }
+    const badge = document.createElement('span');
+    badge.className = 'chat-badge';
+    badge.textContent = chatBadgeCount;
+    btn.appendChild(badge);
+  }
+}
+function clearChatBadge() {
+  chatBadgeCount = 0;
+  const badge = document.querySelector('#nav-chat .chat-badge');
+  if (badge) badge.remove();
+}
+
+function renderChat() {
+  const el = document.getElementById('page-chat');
+  clearChatBadge();
+
+  // Admin tekshiruv
+  const adminEmails = [];
+  chatIsAdmin = !!(state.user && state.user.isAdmin);
+
+  el.innerHTML = `
+    <div class="chat-page">
+      <div class="chat-header">
+        <div>
+          <h1>💬 ${t('chat_title')}</h1>
+          <p>${t('chat_sub')}</p>
+        </div>
+        <div id="chat-status" class="chat-status">${t('chat_connecting')}</div>
+      </div>
+
+      <div class="chat-window">
+        <div id="chat-messages" class="chat-messages">
+          <div class="chat-empty">${t('chat_connecting')}...</div>
+        </div>
+
+        <div id="chat-error" class="chat-error-bar" style="display:none"></div>
+
+        ${state.user ? `
+          <div class="chat-input-row">
+            <input
+              type="text"
+              id="chat-input"
+              class="chat-input"
+              placeholder="${t('chat_placeholder')}"
+              maxlength="300"
+              autocomplete="off"
+              onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChatMessage()}"
+            >
+            <button class="btn btn-primary chat-send-btn" id="chat-send-btn" onclick="sendChatMessage()">
+              ${t('chat_send')} ➤
+            </button>
+          </div>
+          <div class="chat-char-count"><span id="chat-char">0</span>/300</div>
+        ` : `
+          <div class="chat-guest-bar">
+            ${t('chat_login_hint')} <button class="chat-login-link" onclick="showPage('auth')">${t('chat_login_link')}</button>
+          </div>
+        `}
+      </div>
+    </div>
+  `;
+
+  // Input char counter
+  const input = document.getElementById('chat-input');
+  if (input) {
+    input.addEventListener('input', () => {
+      const cnt = document.getElementById('chat-char');
+      if (cnt) cnt.textContent = input.value.length;
+    });
+    setTimeout(() => input.focus(), 100);
+  }
+
+  // Socket ulanish (yoki mavjudni ishlatish)
+  initChatSocket();
+  if (chatConnected) updateChatStatus('online');
+}
+
+async function sendChatMessage() {
+  if (!chatSocket || !chatConnected) return;
+  const input = document.getElementById('chat-input');
+  const btn = document.getElementById('chat-send-btn');
+  if (!input) return;
+
+  const text = input.value.trim();
+  if (!text) return;
+
+  btn.disabled = true;
+  chatSocket.emit('chat:send', text);
+  input.value = '';
+  const cnt = document.getElementById('chat-char');
+  if (cnt) cnt.textContent = '0';
+
+  setTimeout(() => { if (btn) btn.disabled = false; }, 1500);
+}
+
+function deleteChatMessage(msgId) {
+  if (!chatSocket || !chatIsAdmin) return;
+  if (!confirm('Xabarni o\'chirishni tasdiqlaysizmi?')) return;
+  chatSocket.emit('chat:delete', msgId);
+}
+
 // ==================== SUPPORT ====================
 function renderSupport() {
   const el = document.getElementById('page-support');
@@ -1837,6 +2090,7 @@ async function init() {
   document.getElementById('nav-login').addEventListener('click', () => { showPage('auth'); closeMobileMenu(); });
   document.getElementById('nav-register').addEventListener('click', () => { switchAuthTab('register'); showPage('auth'); closeMobileMenu(); });
   document.getElementById('nav-leaderboard').addEventListener('click', () => { showPage('leaderboard'); closeMobileMenu(); });
+  document.getElementById('nav-chat').addEventListener('click', () => { showPage('chat'); closeMobileMenu(); });
   document.getElementById('nav-support').addEventListener('click', () => { showPage('support'); closeMobileMenu(); });
   document.getElementById('nav-profile').addEventListener('click', () => { showPage('profile'); closeMobileMenu(); });
   document.getElementById('nav-admin').addEventListener('click', () => { showPage('admin'); closeMobileMenu(); });

@@ -9,6 +9,7 @@ const T = {
     logout: "Chiqish",
     profile: "Profil",
     nav_leaderboard: "Reyting",
+    nav_chat: "Chat",
     nav_support: "Yordam",
     nav_admin: "Admin",
     nav_login: "Kirish",
@@ -142,6 +143,20 @@ const T = {
     avatar_saved: "✅ Rasm saqlandi!",
     avatar_remove: "Rasmni o'chirish",
 
+    // Chat
+    chat_title: "Global Chat",
+    chat_sub: "Barcha o'quvchilar bilan muloqot qiling",
+    chat_placeholder: "Xabar yozing... (Enter — yuborish)",
+    chat_send: "Yuborish",
+    chat_login_hint: "Xabar yuborish uchun",
+    chat_login_link: "tizimga kiring",
+    chat_empty: "Hali xabar yo'q. Birinchi bo'lib yozing!",
+    chat_connecting: "Ulanmoqda...",
+    chat_online: "Ulandi",
+    chat_offline: "Uzildi",
+    chat_deleted: "[xabar o'chirildi]",
+    chat_you: "Siz",
+
     // Admin — kurslar
     admin_users_tab: "👤 Foydalanuvchilar",
     admin_courses_tab: "📚 Kurslar",
@@ -177,6 +192,7 @@ const T = {
     logout: "Выйти",
     profile: "Профиль",
     nav_leaderboard: "Рейтинг",
+    nav_chat: "Чат",
     nav_support: "Помощь",
     nav_admin: "Admin",
     nav_login: "Войти",
@@ -303,6 +319,20 @@ const T = {
     avatar_saved: "✅ Фото сохранено!",
     avatar_remove: "Удалить фото",
 
+    // Chat
+    chat_title: "Глобальный чат",
+    chat_sub: "Общайтесь со всеми студентами",
+    chat_placeholder: "Напишите сообщение... (Enter — отправить)",
+    chat_send: "Отправить",
+    chat_login_hint: "Чтобы отправить сообщение,",
+    chat_login_link: "войдите в систему",
+    chat_empty: "Сообщений ещё нет. Напишите первым!",
+    chat_connecting: "Подключение...",
+    chat_online: "Подключено",
+    chat_offline: "Отключено",
+    chat_deleted: "[сообщение удалено]",
+    chat_you: "Вы",
+
     // Admin — курсы
     admin_users_tab: "👤 Пользователи",
     admin_courses_tab: "📚 Курсы",
@@ -338,6 +368,7 @@ const T = {
     logout: "Logout",
     profile: "Profile",
     nav_leaderboard: "Ranking",
+    nav_chat: "Chat",
     nav_support: "Help",
     nav_admin: "Admin",
     nav_login: "Login",
@@ -463,6 +494,20 @@ const T = {
     avatar_uploading: "Uploading...",
     avatar_saved: "✅ Photo saved!",
     avatar_remove: "Remove photo",
+
+    // Chat
+    chat_title: "Global Chat",
+    chat_sub: "Talk with all students",
+    chat_placeholder: "Type a message... (Enter to send)",
+    chat_send: "Send",
+    chat_login_hint: "To send messages,",
+    chat_login_link: "log in",
+    chat_empty: "No messages yet. Be the first!",
+    chat_connecting: "Connecting...",
+    chat_online: "Connected",
+    chat_offline: "Disconnected",
+    chat_deleted: "[message deleted]",
+    chat_you: "You",
 
     // Admin — courses
     admin_users_tab: "👤 Users",
