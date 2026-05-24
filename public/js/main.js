@@ -62,6 +62,9 @@ async function initAuth() {
       window.currentLang = state.lang;
       setLang(state.lang);
       await loadProgress();
+      // Saqlangan token bilan socket'ni ulash
+      disconnectChatSocket();
+      initChatSocket();
     } else {
       // Token eskirgan yoki server xatosi — tokenni tozala
       state.token = null;
@@ -116,6 +119,9 @@ async function register(username, email, password, lang, captchaToken, captchaAn
     document.querySelectorAll('.lang-btn').forEach(b => {
       b.classList.toggle('active', b.dataset.lang === lang);
     });
+    // Ro'yxatdan o'tgandan keyin socket'ni yangi token bilan ulash
+    disconnectChatSocket();
+    initChatSocket();
     return { ok: true };
   }
   return { ok: false, error: res.error || 'Ro\'yxatdan o\'tish amalga oshmadi' };
@@ -1772,7 +1778,19 @@ let chatConnected = false;
 let chatIsAdmin = false;
 
 function initChatSocket() {
-  if (chatSocket) return; // allaqachon ulangan
+  // Agar socket mavjud bo'lsa, lekin token o'zgargan bo'lsa — qayta ul
+  if (chatSocket) {
+    const socketToken = chatSocket.auth?.token || null;
+    const currentToken = state.token || null;
+    if (socketToken !== currentToken) {
+      // Token farqlansa — qayta ulanish kerak
+      chatSocket.disconnect();
+      chatSocket = null;
+      chatConnected = false;
+    } else {
+      return; // Token bir xil, qayta ulash shart emas
+    }
+  }
 
   chatSocket = io({ auth: { token: state.token || null }, transports: ['websocket', 'polling'] });
 
