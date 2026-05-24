@@ -1792,7 +1792,7 @@ function initChatSocket() {
     }
   }
 
-  chatSocket = io({ auth: { token: state.token || null }, transports: ['websocket', 'polling'] });
+  chatSocket = io({ auth: { token: state.token || null } });
 
   chatSocket.on('connect', () => {
     chatConnected = true;
