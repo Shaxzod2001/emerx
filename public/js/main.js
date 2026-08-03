@@ -12,9 +12,12 @@ const API = '/api';
 let state = {
   user: null,
   token: localStorage.getItem('emerx_token'),
+  lang: localStorage.getItem('emerx_lang') || 'ru',
   currentPage: 'dashboard',
   status: null, // /api/breaks/status javobi
 };
+
+window.currentLang = state.lang;
 
 let statusTimer = null;   // countdownlarni yangilab turuvchi interval
 let pollTimer = null;     // fallback polling
@@ -22,7 +25,7 @@ let socket = null;
 
 // ==================== API HELPER ====================
 async function api(path, opts = {}) {
-  const headers = { 'Content-Type': 'application/json' };
+  const headers = { 'Content-Type': 'application/json', 'X-Lang': state.lang };
   if (state.token) headers['Authorization'] = `Bearer ${state.token}`;
   try {
     const res = await fetch(API + path, { headers, ...opts });
@@ -30,19 +33,19 @@ async function api(path, opts = {}) {
 
     if (!ct.includes('application/json')) {
       console.warn(`[API] Non-JSON: ${path} → ${res.status}`);
-      return { error: `Server ${res.status === 503 || res.status === 502 ? 'qayta ishga tushmoqda, 1 daqiqa kuting' : 'xatosi (' + res.status + ')'}` };
+      return { error: `Server error (${res.status})` };
     }
 
     const text = await res.text();
     if (!text || !text.trim()) {
       console.warn(`[API] Bo'sh response: ${path}`);
-      return { error: 'Server bo\'sh javob qaytardi' };
+      return { error: 'Empty response' };
     }
 
     return JSON.parse(text);
   } catch (e) {
     console.error(`[API] Xato: ${path}`, e.message);
-    return { error: 'Tarmoq xatosi. Qayta urinib ko\'ring.' };
+    return { error: 'Network error' };
   }
 }
 
@@ -51,14 +54,37 @@ function toast(msg, isError = false) {
   const el = document.getElementById('toast');
   if (!el) return;
   el.textContent = msg;
-  el.style.background = isError ? 'rgba(255,68,68,0.15)' : 'var(--card2)';
+  el.style.background = isError ? 'rgba(239,68,68,0.15)' : 'var(--card2)';
   el.style.borderColor = isError ? 'var(--red)' : 'var(--border)';
   el.classList.add('show');
   clearTimeout(el._timer);
   el._timer = setTimeout(() => el.classList.remove('show'), 3000);
 }
 
+// ==================== TIL (i18n) ====================
+function setLang(lang) {
+  state.lang = lang;
+  window.currentLang = lang;
+  localStorage.setItem('emerx_lang', lang);
+  document.querySelectorAll('.lang-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.lang === lang);
+  });
+  applyStaticText();
+  showPage(state.currentPage);
+}
+
+function applyStaticText() {
+  const setText = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+  setText('nav-login', t('nav_login'));
+  setText('nav-register', t('nav_register'));
+  setText('nav-dashboard', '🍽️ ' + t('nav_dashboard'));
+  setText('nav-admin', '⚙️ ' + t('nav_admin'));
+  setText('nav-logout', t('nav_logout'));
+}
+
 // ==================== AUTH ====================
+function fullName(u) { return u ? `${u.firstName} ${u.lastName}`.trim() : ''; }
+
 async function initAuth() {
   if (!state.token) return;
   const user = await api('/auth/me');
@@ -71,8 +97,8 @@ async function initAuth() {
   }
 }
 
-async function login(email, password) {
-  const res = await api('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
+async function login(phone, password) {
+  const res = await api('/auth/login', { method: 'POST', body: JSON.stringify({ phone, password }) });
   if (res.token) {
     state.token = res.token;
     state.user = res.user;
@@ -80,13 +106,13 @@ async function login(email, password) {
     connectSocket();
     return { ok: true };
   }
-  return { ok: false, error: res.error || 'Kirish amalga oshmadi' };
+  return { ok: false, error: res.error || 'Error' };
 }
 
-async function register(username, email, password, captchaToken, captchaAnswer) {
+async function register(firstName, lastName, phone, password, captchaToken, captchaAnswer) {
   const res = await api('/auth/register', {
     method: 'POST',
-    body: JSON.stringify({ username, email, password, captchaToken, captchaAnswer })
+    body: JSON.stringify({ firstName, lastName, phone, password, captchaToken, captchaAnswer })
   });
   if (res.token) {
     state.token = res.token;
@@ -95,7 +121,7 @@ async function register(username, email, password, captchaToken, captchaAnswer) 
     connectSocket();
     return { ok: true };
   }
-  return { ok: false, error: res.error || 'Ro\'yxatdan o\'tish amalga oshmadi' };
+  return { ok: false, error: res.error || 'Error' };
 }
 
 function logout() {
@@ -130,7 +156,7 @@ function updateNavbar() {
   if (state.user) {
     navAuth.style.display = 'none';
     navUser.style.display = 'flex';
-    document.getElementById('nav-username').textContent = state.user.username;
+    document.getElementById('nav-username').textContent = fullName(state.user);
     const navAdmin = document.getElementById('nav-admin');
     navAdmin.style.display = state.user.isAdmin ? 'inline-flex' : 'none';
   } else {
@@ -178,7 +204,7 @@ function startPolling() {
 // ==================== VAQT YORDAMCHILARI ====================
 function fmtTime(iso) {
   if (!iso) return '—';
-  return new Date(iso).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tashkent' });
+  return new Date(iso).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tashkent' });
 }
 
 function fmtDuration(ms) {
@@ -196,7 +222,7 @@ function tickCountdowns() {
   document.querySelectorAll('[data-countdown]').forEach(el => {
     const end = new Date(el.dataset.countdown).getTime();
     const diff = end - Date.now();
-    el.textContent = (diff >= 0 ? '⏳ ' : '⚠️ kechikdi ') + fmtDuration(diff);
+    el.textContent = (diff >= 0 ? '⏳ ' : '⚠️ ') + fmtDuration(diff);
     el.style.color = diff >= 0 ? 'var(--text2)' : 'var(--red)';
   });
 }
@@ -214,19 +240,19 @@ async function loadStatusAndRender() {
 async function startBreak() {
   const res = await api('/breaks/start', { method: 'POST' });
   if (res.error) return toast(res.error, true);
-  toast(res.break.status === 'active' ? '🍽️ Abetga chiqdingiz!' : '⏳ Navbatga qo\'yildingiz');
+  toast(res.break.status === 'active' ? t('toast_went') : t('toast_queued'));
   loadStatusAndRender();
 }
 async function endBreak() {
   const res = await api('/breaks/end', { method: 'POST' });
   if (res.error) return toast(res.error, true);
-  toast('✅ Qaytdingiz!');
+  toast(t('toast_returned'));
   loadStatusAndRender();
 }
 async function cancelQueue() {
   const res = await api('/breaks/cancel', { method: 'DELETE' });
   if (res.error) return toast(res.error, true);
-  toast('Navbat bekor qilindi');
+  toast(t('toast_queue_cancelled'));
   loadStatusAndRender();
 }
 
@@ -235,19 +261,19 @@ function renderDashboardShell() {
   document.getElementById('page-dashboard').innerHTML = `
     <div class="dashboard-page">
       <div class="dashboard-header">
-        <h1>🕐 Abet Nazorati</h1>
-        <p>Xodimlarning tushlik tanaffusiga chiqish vaqtini boshqarish</p>
+        <h1>${t('dashboard_title')}</h1>
+        <p>${t('dashboard_subtitle')}</p>
       </div>
-      <div id="dash-body">Yuklanmoqda...</div>
+      <div id="dash-body">...</div>
     </div>
   `;
 }
 
 function personListHtml(list, opts = {}) {
-  if (!list.length) return `<p style="color:var(--text2);padding:8px 0">${opts.empty || 'Bo\'sh'}</p>`;
+  if (!list.length) return `<p style="color:var(--text2);padding:8px 0">${opts.empty || '—'}</p>`;
   return `<div class="person-list">${list.map(p => `
     <div class="person-row">
-      <span class="person-name">${escapeHtml(p.username)}</span>
+      <span class="person-name">${escapeHtml(p.fullName)}</span>
       ${opts.render ? opts.render(p) : ''}
     </div>`).join('')}</div>`;
 }
@@ -265,34 +291,34 @@ function renderDashboardBody() {
   if (!s.self || s.self.status === 'cancelled') {
     selfCard = `
       <div class="break-hero">
-        <p class="break-hero-label">Sizning holatingiz</p>
-        <h2>Hali abetga chiqmadingiz</h2>
-        <button class="btn btn-primary btn-full" onclick="startBreak()">🍽️ Abetga chiqish</button>
+        <p class="break-hero-label">${t('self_label')}</p>
+        <h2>${t('self_none_title')}</h2>
+        <button class="btn btn-primary btn-full" onclick="startBreak()">${t('self_none_btn')}</button>
       </div>`;
   } else if (s.self.status === 'active') {
     selfCard = `
       <div class="break-hero active">
-        <p class="break-hero-label">Sizning holatingiz</p>
-        <h2>🍽️ Siz hozir abetdasiz</h2>
-        <p>Chiqdingiz: <b>${fmtTime(s.self.startTime)}</b> · Taxminiy qaytish: <b>${fmtTime(s.self.expectedEndTime)}</b></p>
+        <p class="break-hero-label">${t('self_label')}</p>
+        <h2>${t('self_active_title')}</h2>
+        <p>${t('self_active_left')}: <b>${fmtTime(s.self.startTime)}</b> · ${t('self_active_return')}: <b>${fmtTime(s.self.expectedEndTime)}</b></p>
         <p class="countdown-big" data-countdown="${s.self.expectedEndTime}">—</p>
-        <button class="btn btn-primary btn-full" onclick="endBreak()">✅ Qaytdim</button>
+        <button class="btn btn-primary btn-full" onclick="endBreak()">${t('self_active_btn')}</button>
       </div>`;
   } else if (s.self.status === 'queued') {
     selfCard = `
       <div class="break-hero queued">
-        <p class="break-hero-label">Sizning holatingiz</p>
-        <h2>⏳ Navbatdasiz — ${s.self.position}-o'rin</h2>
-        <p>Joy bo'shashi bilan avtomatik chiqarilasiz</p>
-        <button class="btn btn-secondary btn-full" onclick="cancelQueue()">✖ Navbatni bekor qilish</button>
+        <p class="break-hero-label">${t('self_label')}</p>
+        <h2>${t('self_queued_title')} — ${s.self.position}${t('self_queued_position')}</h2>
+        <p>${t('self_queued_note')}</p>
+        <button class="btn btn-secondary btn-full" onclick="cancelQueue()">${t('self_queued_btn')}</button>
       </div>`;
   } else {
     selfCard = `
       <div class="break-hero done">
-        <p class="break-hero-label">Sizning holatingiz</p>
-        <h2>✅ Bugun abetdan qaytdingiz</h2>
+        <p class="break-hero-label">${t('self_label')}</p>
+        <h2>${t('self_done_title')}</h2>
         <p>${fmtTime(s.self.startTime)} — ${fmtTime(s.self.actualEndTime)}</p>
-        <button class="btn btn-primary btn-full" onclick="startBreak()">🍽️ Yana chiqish</button>
+        <button class="btn btn-primary btn-full" onclick="startBreak()">${t('self_done_btn')}</button>
       </div>`;
   }
 
@@ -300,27 +326,27 @@ function renderDashboardBody() {
     ${selfCard}
 
     <div class="stats-grid" style="margin-top:28px">
-      <div class="stat-card"><div class="stat-val">${s.activeCount}/${s.maxConcurrent}</div><div class="stat-lbl">Hozir abetda</div></div>
-      <div class="stat-card"><div class="stat-val">${s.queue.length}</div><div class="stat-lbl">Navbatda</div></div>
-      <div class="stat-card"><div class="stat-val">${s.notGoneYet.length}</div><div class="stat-lbl">Hali chiqmagan</div></div>
+      <div class="stat-card"><div class="stat-val">${s.activeCount}/${s.maxConcurrent}</div><div class="stat-lbl">${t('stat_active')}</div></div>
+      <div class="stat-card"><div class="stat-val">${s.queue.length}</div><div class="stat-lbl">${t('stat_queue')}</div></div>
+      <div class="stat-card"><div class="stat-val">${s.notGoneYet.length}</div><div class="stat-lbl">${t('stat_notgone')}</div></div>
     </div>
 
     <div class="break-section">
-      <h3>🍽️ Hozir abetda (${s.active.length})</h3>
-      ${personListHtml(s.active, { empty: 'Hozir hech kim abetda emas', render: p => `
+      <h3>${t('section_active')} (${s.active.length})</h3>
+      ${personListHtml(s.active, { empty: t('empty_active'), render: p => `
         <span class="person-meta">${fmtTime(p.startTime)} → ${fmtTime(p.expectedEndTime)}</span>
         <span class="countdown-sm" data-countdown="${p.expectedEndTime}">—</span>
       `})}
     </div>
 
     <div class="break-section">
-      <h3>⏳ Navbatda kutayotganlar (${s.queue.length})</h3>
-      ${personListHtml(s.queue, { empty: 'Navbat bo\'sh', render: p => `<span class="person-meta">${p.position}-o'rin</span>` })}
+      <h3>${t('section_queue')} (${s.queue.length})</h3>
+      ${personListHtml(s.queue, { empty: t('empty_queue'), render: p => `<span class="person-meta">${p.position}${t('self_queued_position')}</span>` })}
     </div>
 
     <div class="break-section">
-      <h3>🕓 Bugun hali chiqmaganlar (${s.notGoneYet.length})</h3>
-      ${personListHtml(s.notGoneYet, { empty: 'Hammasi chiqib ulgurdi' })}
+      <h3>${t('section_notgone')} (${s.notGoneYet.length})</h3>
+      ${personListHtml(s.notGoneYet, { empty: t('empty_notgone') })}
     </div>
   `;
   tickCountdowns();
@@ -331,38 +357,38 @@ function renderAdminShell() {
   document.getElementById('page-admin').innerHTML = `
     <div class="dashboard-page">
       <div class="dashboard-header">
-        <h1>⚙️ Admin — Abet nazorati</h1>
-        <p>Barcha xodimlarning abet holatini kuzatish va sozlash</p>
+        <h1>${t('admin_title')}</h1>
+        <p>${t('admin_subtitle')}</p>
       </div>
-      <div id="admin-body">Yuklanmoqda...</div>
+      <div id="admin-body">...</div>
 
       <div class="break-section">
-        <h3>🛠 Sozlamalar</h3>
+        <h3>${t('section_settings')}</h3>
         <form id="settings-form" class="settings-form">
           <div class="form-group">
-            <label class="form-label">Abet davomiyligi (daqiqa)</label>
+            <label class="form-label">${t('label_duration')}</label>
             <input type="number" class="form-input" id="set-duration" min="1" max="480" required>
           </div>
           <div class="form-group">
-            <label class="form-label">Bir vaqtda nechta kishi chiqishi mumkin</label>
+            <label class="form-label">${t('label_maxconcurrent')}</label>
             <input type="number" class="form-input" id="set-max" min="1" max="50" required>
           </div>
           <div class="error-msg" id="settings-error"></div>
-          <button type="submit" class="btn btn-primary">💾 Saqlash</button>
+          <button type="submit" class="btn btn-primary">${t('btn_save_settings')}</button>
         </form>
       </div>
 
       <div class="break-section">
-        <h3>📋 Tarix</h3>
+        <h3>${t('section_history')}</h3>
         <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
           <input type="date" class="form-input" id="history-date" style="max-width:200px">
-          <button class="btn btn-secondary btn-sm" onclick="loadHistory()">Ko'rsatish</button>
+          <button class="btn btn-secondary btn-sm" onclick="loadHistory()">${t('btn_show')}</button>
         </div>
         <div id="history-body"></div>
       </div>
 
       <div class="break-section">
-        <h3>👥 Foydalanuvchilar</h3>
+        <h3>${t('section_users')}</h3>
         <div id="users-body"></div>
       </div>
     </div>
@@ -379,28 +405,28 @@ function renderAdminBody() {
 
   el.innerHTML = `
     <div class="stats-grid">
-      <div class="stat-card"><div class="stat-val">${s.activeCount}/${s.maxConcurrent}</div><div class="stat-lbl">Hozir abetda</div></div>
-      <div class="stat-card"><div class="stat-val">${s.queue.length}</div><div class="stat-lbl">Navbatda</div></div>
-      <div class="stat-card"><div class="stat-val">${s.completed.length}</div><div class="stat-lbl">Bugun qaytganlar</div></div>
-      <div class="stat-card"><div class="stat-val">${s.notGoneYet.length}</div><div class="stat-lbl">Hali chiqmagan</div></div>
+      <div class="stat-card"><div class="stat-val">${s.activeCount}/${s.maxConcurrent}</div><div class="stat-lbl">${t('stat_active')}</div></div>
+      <div class="stat-card"><div class="stat-val">${s.queue.length}</div><div class="stat-lbl">${t('stat_queue')}</div></div>
+      <div class="stat-card"><div class="stat-val">${s.completed.length}</div><div class="stat-lbl">${t('admin_stat_completed')}</div></div>
+      <div class="stat-card"><div class="stat-val">${s.notGoneYet.length}</div><div class="stat-lbl">${t('stat_notgone')}</div></div>
     </div>
 
     <div class="break-section">
-      <h3>🍽️ Hozir abetda</h3>
-      ${personListHtml(s.active, { empty: 'Hozir hech kim abetda emas', render: p => `
+      <h3>${t('section_active')}</h3>
+      ${personListHtml(s.active, { empty: t('empty_active'), render: p => `
         <span class="person-meta">${fmtTime(p.startTime)} → ${fmtTime(p.expectedEndTime)}</span>
         <span class="countdown-sm" data-countdown="${p.expectedEndTime}">—</span>
       `})}
     </div>
 
     <div class="break-section">
-      <h3>⏳ Navbatda</h3>
-      ${personListHtml(s.queue, { empty: 'Navbat bo\'sh', render: p => `<span class="person-meta">${p.position}-o'rin</span>` })}
+      <h3>${t('section_queue')}</h3>
+      ${personListHtml(s.queue, { empty: t('empty_queue'), render: p => `<span class="person-meta">${p.position}${t('self_queued_position')}</span>` })}
     </div>
 
     <div class="break-section">
-      <h3>🕓 Hali chiqmaganlar</h3>
-      ${personListHtml(s.notGoneYet, { empty: 'Hammasi chiqib ulgurdi' })}
+      <h3>${t('section_notgone')}</h3>
+      ${personListHtml(s.notGoneYet, { empty: t('empty_notgone') })}
     </div>
   `;
 
@@ -420,7 +446,7 @@ async function saveSettings(e) {
     body: JSON.stringify({ breakDurationMinutes, maxConcurrent })
   });
   if (res.error) { errEl.textContent = res.error; return; }
-  toast('✅ Sozlamalar saqlandi');
+  toast(t('toast_settings_saved'));
   loadStatusAndRender();
 }
 
@@ -429,17 +455,17 @@ async function loadHistory() {
   const res = await api('/breaks/history?date=' + date);
   const body = document.getElementById('history-body');
   if (res.error) { body.innerHTML = `<p class="error-msg">${res.error}</p>`; return; }
-  if (!res.records.length) { body.innerHTML = `<p style="color:var(--text2)">Bu sana uchun ma'lumot yo'q</p>`; return; }
+  if (!res.records.length) { body.innerHTML = `<p style="color:var(--text2)">${t('history_empty')}</p>`; return; }
 
-  const statusLabel = { active: '🍽️ Abetda', queued: '⏳ Navbatda', completed: '✅ Qaytgan', cancelled: '✖ Bekor qilingan' };
+  const statusLabel = { active: t('status_active'), queued: t('status_queued'), completed: t('status_completed'), cancelled: t('status_cancelled') };
   body.innerHTML = `
     <div class="history-table">
       <div class="history-row history-head">
-        <span>Xodim</span><span>Chiqdi</span><span>Qaytdi</span><span>Holat</span>
+        <span>${t('th_employee')}</span><span>${t('th_left')}</span><span>${t('th_return')}</span><span>${t('th_status')}</span>
       </div>
       ${res.records.map(r => `
         <div class="history-row">
-          <span>${escapeHtml(r.username)}</span>
+          <span>${escapeHtml(r.fullName)}</span>
           <span>${fmtTime(r.startTime)}</span>
           <span>${fmtTime(r.actualEndTime)}</span>
           <span>${statusLabel[r.status] || r.status}</span>
@@ -463,16 +489,16 @@ async function loadUsers() {
   body.innerHTML = `
     <div class="history-table">
       <div class="history-row history-head">
-        <span>Foydalanuvchi</span><span>Email</span><span>Rol</span><span>Amal</span>
+        <span>${t('th_employee')}</span><span>${t('th_phone')}</span><span>${t('th_role')}</span><span>${t('th_action')}</span>
       </div>
       ${res.users.map(u => `
         <div class="history-row">
-          <span>${escapeHtml(u.username)}</span>
-          <span style="font-size:0.8rem;color:var(--text2)">${escapeHtml(u.email)}</span>
-          <span>${u.isAdmin ? '⭐ Admin' : 'Xodim'}${u.isBanned ? ' · 🚫 Bloklangan' : ''}</span>
+          <span>${escapeHtml(u.firstName)} ${escapeHtml(u.lastName)}</span>
+          <span style="font-size:0.8rem;color:var(--text2)">${escapeHtml(u.phone)}</span>
+          <span>${u.isAdmin ? t('role_admin') : t('role_employee')}${u.isBanned ? ' · ' + t('banned_label') : ''}</span>
           <span style="display:flex;gap:6px;flex-wrap:wrap">
-            <button class="btn btn-secondary btn-sm" onclick="toggleBan('${u.id}', ${!u.isBanned})">${u.isBanned ? 'Blokdan chiqarish' : 'Bloklash'}</button>
-            <button class="btn btn-secondary btn-sm" onclick="toggleAdmin('${u.id}', ${!u.isAdmin})">${u.isAdmin ? 'Admin olish' : 'Admin qilish'}</button>
+            <button class="btn btn-secondary btn-sm" onclick="toggleBan('${u.id}', ${!u.isBanned})">${u.isBanned ? t('btn_unban') : t('btn_ban')}</button>
+            <button class="btn btn-secondary btn-sm" onclick="toggleAdmin('${u.id}', ${!u.isAdmin})">${u.isAdmin ? t('btn_remove_admin') : t('btn_make_admin')}</button>
           </span>
         </div>
       `).join('')}
@@ -483,13 +509,13 @@ async function loadUsers() {
 async function toggleBan(id, isBanned) {
   const res = await api(`/admin/users/${id}/ban`, { method: 'PUT', body: JSON.stringify({ isBanned }) });
   if (res.error) return toast(res.error, true);
-  toast('✅ Yangilandi');
+  toast(t('toast_updated'));
   loadUsers();
 }
 async function toggleAdmin(id, isAdmin) {
   const res = await api(`/admin/users/${id}/admin`, { method: 'PUT', body: JSON.stringify({ isAdmin }) });
   if (res.error) return toast(res.error, true);
-  toast('✅ Yangilandi');
+  toast(t('toast_updated'));
   loadUsers();
 }
 
@@ -498,41 +524,47 @@ function renderProfile() {
   document.getElementById('page-profile').innerHTML = `
     <div class="auth-page">
       <div class="auth-card">
-        <div class="auth-logo"><div class="logo-big">👤 Profil</div></div>
+        <div class="auth-logo"><div class="logo-big">${t('profile_title')}</div></div>
 
         <div class="form-group">
-          <label class="form-label">Foydalanuvchi nomi</label>
-          <input class="form-input" id="pf-username" value="${escapeHtml(state.user.username)}">
+          <label class="form-label">${t('field_firstname')}</label>
+          <input class="form-input" id="pf-firstname" value="${escapeHtml(state.user.firstName)}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">${t('field_lastname')}</label>
+          <input class="form-input" id="pf-lastname" value="${escapeHtml(state.user.lastName)}">
         </div>
         <div class="error-msg" id="pf-error"></div>
-        <button class="btn btn-primary btn-full" onclick="saveUsername()">Saqlash</button>
+        <button class="btn btn-primary btn-full" onclick="saveProfileName()">${t('btn_save')}</button>
 
         <div style="height:1px;background:var(--border);margin:24px 0"></div>
 
         <div class="form-group">
-          <label class="form-label">Joriy parol</label>
+          <label class="form-label">${t('field_password_current')}</label>
           <input type="password" class="form-input" id="pf-current-pass">
         </div>
         <div class="form-group">
-          <label class="form-label">Yangi parol</label>
+          <label class="form-label">${t('field_password_new')}</label>
           <input type="password" class="form-input" id="pf-new-pass">
         </div>
         <div class="error-msg" id="pf-pass-error"></div>
-        <button class="btn btn-secondary btn-full" onclick="changePassword()">Parolni o'zgartirish</button>
+        <button class="btn btn-secondary btn-full" onclick="changePassword()">${t('btn_change_password')}</button>
       </div>
     </div>
   `;
 }
 
-async function saveUsername() {
-  const username = document.getElementById('pf-username').value.trim();
+async function saveProfileName() {
+  const firstName = document.getElementById('pf-firstname').value.trim();
+  const lastName = document.getElementById('pf-lastname').value.trim();
   const errEl = document.getElementById('pf-error');
   errEl.textContent = '';
-  const res = await api('/profile', { method: 'PUT', body: JSON.stringify({ username }) });
+  const res = await api('/profile', { method: 'PUT', body: JSON.stringify({ firstName, lastName }) });
   if (res.error) { errEl.textContent = res.error; return; }
-  state.user.username = username;
+  state.user.firstName = firstName;
+  state.user.lastName = lastName;
   updateNavbar();
-  toast('✅ Saqlandi');
+  toast(t('toast_saved'));
 }
 
 async function changePassword() {
@@ -544,7 +576,7 @@ async function changePassword() {
   if (res.error) { errEl.textContent = res.error; return; }
   document.getElementById('pf-current-pass').value = '';
   document.getElementById('pf-new-pass').value = '';
-  toast('✅ Parol o\'zgartirildi');
+  toast(t('toast_password_changed'));
 }
 
 // ==================== AUTH SAHIFASI ====================
@@ -564,13 +596,13 @@ function renderAuth() {
     <div class="auth-page">
       <div class="auth-card">
         <div class="auth-logo">
-          <div class="logo-big">🕐 EmerX Abet</div>
-          <p>Xodimlarning abet vaqtini nazorat qilish tizimi</p>
+          <div class="logo-big"><span class="logo-x5">X5</span> <span class="logo-accent">Abet</span></div>
+          <p>${t('logo_sub')}</p>
         </div>
 
         <div class="auth-tabs">
-          <button class="auth-tab ${tab === 'login' ? 'active' : ''}" onclick="switchAuthTab('login')">Kirish</button>
-          <button class="auth-tab ${tab === 'register' ? 'active' : ''}" onclick="switchAuthTab('register')">Ro'yxatdan o'tish</button>
+          <button class="auth-tab ${tab === 'login' ? 'active' : ''}" onclick="switchAuthTab('login')">${t('auth_tab_login')}</button>
+          <button class="auth-tab ${tab === 'register' ? 'active' : ''}" onclick="switchAuthTab('register')">${t('auth_tab_register')}</button>
         </div>
 
         ${tab === 'login' ? loginFormHtml() : registerFormHtml()}
@@ -595,15 +627,15 @@ function loginFormHtml() {
   return `
     <form id="login-form">
       <div class="form-group">
-        <label class="form-label">Email</label>
-        <input type="email" class="form-input" id="login-email" required>
+        <label class="form-label">${t('field_phone')}</label>
+        <input type="tel" class="form-input" id="login-phone" placeholder="+7 ___ ___-__-__" required>
       </div>
       <div class="form-group">
-        <label class="form-label">Parol</label>
+        <label class="form-label">${t('field_password')}</label>
         <input type="password" class="form-input" id="login-password" required>
       </div>
       <div class="error-msg" id="login-error"></div>
-      <button type="submit" class="btn btn-primary btn-full">Kirish</button>
+      <button type="submit" class="btn btn-primary btn-full">${t('btn_login')}</button>
     </form>
   `;
 }
@@ -612,34 +644,38 @@ function registerFormHtml() {
   return `
     <form id="register-form">
       <div class="form-group">
-        <label class="form-label">Foydalanuvchi nomi</label>
-        <input class="form-input" id="reg-username" required minlength="3" maxlength="30">
+        <label class="form-label">${t('field_firstname')}</label>
+        <input class="form-input" id="reg-firstname" required minlength="2" maxlength="30">
       </div>
       <div class="form-group">
-        <label class="form-label">Email</label>
-        <input type="email" class="form-input" id="reg-email" required>
+        <label class="form-label">${t('field_lastname')}</label>
+        <input class="form-input" id="reg-lastname" required minlength="2" maxlength="30">
       </div>
       <div class="form-group">
-        <label class="form-label">Parol</label>
+        <label class="form-label">${t('field_phone')}</label>
+        <input type="tel" class="form-input" id="reg-phone" placeholder="+7 ___ ___-__-__" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">${t('field_password')}</label>
         <input type="password" class="form-input" id="reg-password" required minlength="6">
       </div>
       <div class="form-group">
-        <label class="form-label">Tekshiruv: <span id="captcha-question">yuklanmoqda...</span></label>
+        <label class="form-label">${t('captcha_label')}: <span id="captcha-question">${t('captcha_loading')}</span></label>
         <input class="form-input" id="reg-captcha" required>
       </div>
       <div class="error-msg" id="register-error"></div>
-      <button type="submit" class="btn btn-primary btn-full">Ro'yxatdan o'tish</button>
+      <button type="submit" class="btn btn-primary btn-full">${t('btn_register')}</button>
     </form>
   `;
 }
 
 async function onLoginSubmit(e) {
   e.preventDefault();
-  const email = document.getElementById('login-email').value.trim();
+  const phone = document.getElementById('login-phone').value.trim();
   const password = document.getElementById('login-password').value;
   const errEl = document.getElementById('login-error');
   errEl.textContent = '';
-  const res = await login(email, password);
+  const res = await login(phone, password);
   if (!res.ok) { errEl.textContent = res.error; return; }
   updateNavbar();
   showPage('dashboard');
@@ -647,16 +683,17 @@ async function onLoginSubmit(e) {
 
 async function onRegisterSubmit(e) {
   e.preventDefault();
-  const username = document.getElementById('reg-username').value.trim();
-  const email = document.getElementById('reg-email').value.trim();
+  const firstName = document.getElementById('reg-firstname').value.trim();
+  const lastName = document.getElementById('reg-lastname').value.trim();
+  const phone = document.getElementById('reg-phone').value.trim();
   const password = document.getElementById('reg-password').value;
   const captchaAnswer = document.getElementById('reg-captcha').value;
   const errEl = document.getElementById('register-error');
   errEl.textContent = '';
 
-  if (!captchaState) { errEl.textContent = 'Tekshiruv yuklanmadi, qayta urinib ko\'ring'; return; }
+  if (!captchaState) { errEl.textContent = 'Error'; return; }
 
-  const res = await register(username, email, password, captchaState.token, captchaAnswer);
+  const res = await register(firstName, lastName, phone, password, captchaState.token, captchaAnswer);
   if (!res.ok) {
     errEl.textContent = res.error;
     loadCaptcha();
@@ -669,6 +706,10 @@ async function onRegisterSubmit(e) {
 
 // ==================== INIT ====================
 document.addEventListener('DOMContentLoaded', async () => {
+  document.querySelectorAll('.lang-btn').forEach(b => {
+    b.onclick = () => setLang(b.dataset.lang);
+  });
+
   document.getElementById('nav-login').onclick = () => { document.getElementById('page-auth').dataset.tab = 'login'; showPage('auth'); };
   document.getElementById('nav-register').onclick = () => { document.getElementById('page-auth').dataset.tab = 'register'; showPage('auth'); };
   document.getElementById('nav-dashboard').onclick = () => showPage('dashboard');
@@ -681,6 +722,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('mobile-overlay').classList.toggle('show');
     document.getElementById('hamburger').classList.toggle('open');
   };
+
+  document.querySelectorAll('.lang-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.lang === state.lang);
+  });
+  applyStaticText();
 
   await initAuth();
   updateNavbar();

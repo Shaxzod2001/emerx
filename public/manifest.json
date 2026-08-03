@@ -1,13 +1,13 @@
 {
-  "name": "EmerX — Abet Nazorati",
-  "short_name": "EmerX Abet",
-  "description": "Xodimlarning abetga (tushlik tanaffusiga) chiqish vaqtini nazorat qilish tizimi",
+  "name": "X5 Abet — Контроль обеденных перерывов",
+  "short_name": "X5 Abet",
+  "description": "Система контроля обеденных перерывов сотрудников",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#080c18",
-  "theme_color": "#00ff88",
+  "background_color": "#0a0a09",
+  "theme_color": "#2fbf5f",
   "orientation": "portrait",
-  "lang": "uz",
+  "lang": "ru",
   "scope": "/",
   "icons": [
     {
@@ -63,9 +63,9 @@
   "screenshots": [],
   "shortcuts": [
     {
-      "name": "Abet holati",
+      "name": "Статус обеда",
       "url": "/#dashboard",
-      "description": "Joriy abet holatini ko'rish"
+      "description": "Посмотреть текущий статус обеда"
     }
   ]
 }

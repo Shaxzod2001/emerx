@@ -3,6 +3,7 @@ const router = express.Router();
 const adminAuth = require('../middleware/adminAuth');
 const { users, breaks } = require('../database');
 const { todayStr } = require('../lib/breakSettings');
+const { t, getLang } = require('../lib/i18nServer');
 
 // Barcha admin routelari himoyalangan
 router.use(adminAuth);
@@ -28,7 +29,7 @@ router.get('/stats', async (req, res) => {
     });
   } catch (e) {
     console.error('admin/stats xato:', e.message);
-    res.status(500).json({ error: 'Server xatosi' });
+    res.status(500).json({ error: t('server_error', getLang(req)) });
   }
 });
 
@@ -42,8 +43,8 @@ router.get('/users', async (req, res) => {
     if (q) {
       const search = q.toLowerCase();
       filtered = filtered.filter(u =>
-        (u.username || '').toLowerCase().includes(search) ||
-        (u.email || '').toLowerCase().includes(search)
+        `${u.firstName || ''} ${u.lastName || ''}`.toLowerCase().includes(search) ||
+        (u.phone || '').includes(search)
       );
     }
 
@@ -61,8 +62,9 @@ router.get('/users', async (req, res) => {
       pages: Math.ceil(total / limitNum),
       users: paginated.map(u => ({
         id: u._id,
-        username: u.username,
-        email: u.email,
+        firstName: u.firstName,
+        lastName: u.lastName,
+        phone: u.phone,
         isAdmin: !!u.isAdmin,
         isBanned: !!u.isBanned,
         created_at: u.created_at,
@@ -70,46 +72,49 @@ router.get('/users', async (req, res) => {
     });
   } catch (e) {
     console.error('admin/users xato:', e.message);
-    res.status(500).json({ error: 'Server xatosi' });
+    res.status(500).json({ error: t('server_error', getLang(req)) });
   }
 });
 
 // ==================== ADMIN BERISH / OLISH ====================
 router.put('/users/:id/admin', async (req, res) => {
+  const lang = getLang(req);
   try {
     // O'zini admin huquqidan mahrum qila olmaydi
     if (req.params.id === req.adminUser._id)
-      return res.status(400).json({ error: 'O\'zingizni boshqara olmaysiz' });
+      return res.status(400).json({ error: t('self_manage', lang) });
     const { isAdmin } = req.body;
     await users.updateAsync({ _id: req.params.id }, { $set: { isAdmin: !!isAdmin } });
     res.json({ success: true, isAdmin: !!isAdmin });
   } catch (e) {
-    res.status(500).json({ error: 'Server xatosi' });
+    res.status(500).json({ error: t('server_error', lang) });
   }
 });
 
 // ==================== BAN / UNBAN ====================
 router.put('/users/:id/ban', async (req, res) => {
+  const lang = getLang(req);
   try {
     if (req.params.id === req.adminUser._id)
-      return res.status(400).json({ error: 'O\'zingizni ban qila olmaysiz' });
+      return res.status(400).json({ error: t('self_ban', lang) });
     const { isBanned } = req.body;
     await users.updateAsync({ _id: req.params.id }, { $set: { isBanned: !!isBanned } });
     res.json({ success: true, isBanned: !!isBanned });
   } catch (e) {
-    res.status(500).json({ error: 'Server xatosi' });
+    res.status(500).json({ error: t('server_error', lang) });
   }
 });
 
 // ==================== FOYDALANUVCHINI O'CHIRISH ====================
 router.delete('/users/:id', async (req, res) => {
+  const lang = getLang(req);
   try {
     if (req.params.id === req.adminUser._id)
-      return res.status(400).json({ error: 'O\'zingizni o\'chira olmaysiz' });
-    await users.updateAsync({ _id: req.params.id }, { $set: { _deleted: true, username: '[deleted]', email: `deleted_${req.params.id}@deleted` } });
+      return res.status(400).json({ error: t('self_delete', lang) });
+    await users.updateAsync({ _id: req.params.id }, { $set: { _deleted: true, firstName: '[o\'chirilgan]', lastName: '', phone: `deleted_${req.params.id}` } });
     res.json({ success: true });
   } catch (e) {
-    res.status(500).json({ error: 'Server xatosi' });
+    res.status(500).json({ error: t('server_error', lang) });
   }
 });
 

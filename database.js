@@ -211,12 +211,12 @@ let users, breaks, settings;
 
 if (USE_LOCAL_DB) {
   console.log('📁 NeDB (lokal) ishlatilmoqda — data/ papkasi');
-  users    = makeNedbCollection('users', [{ fieldName: 'email', unique: true }, { fieldName: 'username', unique: true }]);
+  users    = makeNedbCollection('users', [{ fieldName: 'phone', unique: true }]);
   breaks   = makeNedbCollection('breaks');
   settings = makeNedbCollection('settings');
 } else {
   console.log('☁️  MongoDB Atlas sinab ko\'rilmoqda, muvaffaqiyatsiz bo\'lsa NeDB...');
-  users    = makeSmartCollection('users', [{ fieldName: 'email', unique: true }, { fieldName: 'username', unique: true }]);
+  users    = makeSmartCollection('users', [{ fieldName: 'phone', unique: true }]);
   breaks   = makeSmartCollection('breaks');
   settings = makeSmartCollection('settings');
 }

@@ -1,8 +1,9 @@
-const CACHE = 'emerx-v2';
+const CACHE = 'emerx-v3';
 const STATIC = [
   '/',
   '/index.html',
   '/css/style.css',
+  '/js/i18n.js',
   '/js/main.js',
   '/js/bg.js',
   '/manifest.json',
