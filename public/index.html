@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>EmerX — Kiberxavfsizlik Akademiyasi</title>
-  <meta name="description" content="EmerX — Kiberxavfsizlikni noldan senior darajagacha o'rganing">
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>">
+  <title>EmerX — Abet Nazorati</title>
+  <meta name="description" content="Xodimlarning abetga (tushlik tanaffusiga) chiqish vaqtini nazorat qilish tizimi">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🕐</text></svg>">
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#00ff88">
   <meta name="mobile-web-app-capable" content="yes">
@@ -22,24 +22,12 @@
 
   <!-- ========== NAVBAR ========== -->
   <nav class="navbar">
-    <a class="logo" onclick="showPage('home')" style="cursor:pointer">
-      <div class="logo-icon">🛡️</div>
-      <span class="logo-text">EmerX</span>
+    <a class="logo" onclick="showPage('dashboard')" style="cursor:pointer">
+      <div class="logo-icon">🕐</div>
+      <span class="logo-text">EmerX Abet</span>
     </a>
 
-    <div class="lang-switcher">
-      <button class="lang-btn active" data-lang="uz">UZ</button>
-      <button class="lang-btn" data-lang="ru">RU</button>
-      <button class="lang-btn" data-lang="en">EN</button>
-    </div>
-
     <div class="nav-links" id="nav-links">
-      <button class="nav-btn nav-btn-ghost" id="nav-home">🏠 Bosh sahifa</button>
-      <button class="nav-btn nav-btn-ghost" id="nav-courses">📚 Kurslar</button>
-      <button class="nav-btn nav-btn-ghost" id="nav-leaderboard">🏆 Reyting</button>
-      <button class="nav-btn nav-btn-ghost" id="nav-chat">💬 Chat</button>
-      <button class="nav-btn nav-btn-ghost" id="nav-support">❓ Yordam</button>
-
       <!-- Guest -->
       <div id="nav-auth" style="display:flex;gap:8px;align-items:center">
         <button class="nav-btn nav-btn-ghost" id="nav-login">Kirish</button>
@@ -48,14 +36,9 @@
 
       <!-- User -->
       <div id="nav-user" style="display:none;gap:8px;align-items:center">
-        <button class="nav-btn nav-btn-ghost" id="nav-dashboard">📊 Dashboard</button>
+        <button class="nav-btn nav-btn-ghost" id="nav-dashboard">🍽️ Abet</button>
         <button class="nav-btn nav-btn-ghost" id="nav-admin" style="display:none;color:#f59e0b">⚙️ Admin</button>
-        <div class="nav-coins" id="nav-coins-wrap">
-          <span class="coin-icon">🪙</span>
-          <span id="nav-coins">0</span>
-        </div>
         <button class="nav-profile-btn" id="nav-profile" title="Profil">
-          <img id="nav-avatar" src="" alt="" style="display:none;width:32px;height:32px;border-radius:50%;object-fit:cover;">
           <span id="nav-username" class="nav-username"></span>
         </button>
         <button class="nav-btn nav-btn-ghost" id="nav-logout" style="color:var(--red)">Chiqish</button>
@@ -72,24 +55,15 @@
   <div class="mobile-overlay" id="mobile-overlay" onclick="closeMobileMenu()"></div>
 
   <!-- ========== PAGES ========== -->
-  <div class="page active" id="page-home"></div>
-  <div class="page" id="page-courses"></div>
-  <div class="page" id="page-lesson"></div>
-  <div class="page" id="page-dashboard"></div>
+  <div class="page active" id="page-dashboard"></div>
   <div class="page" id="page-auth" data-tab="login"></div>
-  <div class="page" id="page-leaderboard"></div>
-  <div class="page" id="page-support"></div>
   <div class="page" id="page-profile"></div>
   <div class="page" id="page-admin"></div>
-  <div class="page" id="page-chat"></div>
 
   <!-- TOAST -->
   <div class="toast" id="toast"></div>
-  <!-- COIN ANIMATION -->
-  <div class="coin-popup" id="coin-popup"></div>
 
   <script src="/socket.io/socket.io.js"></script>
-  <script src="/js/i18n.js"></script>
   <script src="/js/main.js"></script>
   <script src="/js/bg.js"></script>
   <script>

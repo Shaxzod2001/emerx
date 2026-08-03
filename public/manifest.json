@@ -1,13 +1,13 @@
 {
-  "name": "EmerX — Kiberxavfsizlik Akademiyasi",
-  "short_name": "EmerX",
-  "description": "Kiberxavfsizlikni noldan senior darajagacha o'rganing",
+  "name": "EmerX — Abet Nazorati",
+  "short_name": "EmerX Abet",
+  "description": "Xodimlarning abetga (tushlik tanaffusiga) chiqish vaqtini nazorat qilish tizimi",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#080c18",
   "theme_color": "#00ff88",
   "orientation": "portrait",
-  "lang": "ru",
+  "lang": "uz",
   "scope": "/",
   "icons": [
     {
@@ -59,23 +59,13 @@
       "purpose": "any maskable"
     }
   ],
-  "categories": ["education", "productivity"],
+  "categories": ["business", "productivity"],
   "screenshots": [],
   "shortcuts": [
     {
-      "name": "Kurslar",
-      "url": "/#courses",
-      "description": "Barcha kurslarni ko'rish"
-    },
-    {
-      "name": "Chat",
-      "url": "/#chat",
-      "description": "Global chat"
-    },
-    {
-      "name": "Reyting",
-      "url": "/#leaderboard",
-      "description": "Reyting jadvali"
+      "name": "Abet holati",
+      "url": "/#dashboard",
+      "description": "Joriy abet holatini ko'rish"
     }
   ]
 }
