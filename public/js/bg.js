@@ -7,8 +7,8 @@
   const ctx = canvas.getContext('2d');
 
   let W, H, particles = [], animId;
-  const COUNT = 55;
-  const COLORS = ['#00ff88', '#00aaff', '#9945ff'];
+  const COUNT = 45;
+  const COLORS = ['#2fbf5f', '#3fd674', '#f5a524'];
   const MAX_DIST = 130;
 
   function resize() {

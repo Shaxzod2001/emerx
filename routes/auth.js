@@ -3,8 +3,11 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { users } = require('../database');
+const { normalizePhone } = require('../lib/phone');
+const { t, getLang } = require('../lib/i18nServer');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'emerx_secret_2024';
+const ADMIN_PHONES = (process.env.ADMIN_PHONES || '').split(',').map(p => p.trim()).filter(Boolean);
 
 function sanitize(str) {
   return String(str).replace(/[<>&"'`]/g, c => ({
@@ -13,12 +16,14 @@ function sanitize(str) {
   }[c])).trim();
 }
 
-function isValidEmail(email) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+function isValidName(name) {
+  const clean = String(name || '').trim();
+  return clean.length >= 2 && clean.length <= 30 && /^[a-zA-Zа-яА-ЯёЁʻʼ'\- ]+$/.test(clean);
 }
 
 // CAPTCHA: matematik savol + imzolangan token
 router.get('/captcha', (req, res) => {
+  const lang = getLang(req);
   try {
     const a = Math.floor(Math.random() * 15) + 1;
     const b = Math.floor(Math.random() * 15) + 1;
@@ -32,112 +37,123 @@ router.get('/captcha', (req, res) => {
     res.json({ token, question: `${op.q} = ?` });
   } catch (e) {
     console.error('Captcha xatosi:', e.message);
-    res.status(500).json({ error: 'Captcha yaratishda xato' });
+    res.status(500).json({ error: t('server_error', lang) });
   }
 });
 
+function isAdminUser(user) {
+  return user.isAdmin === true || ADMIN_PHONES.includes(user.phone);
+}
+
 // RO'YXATDAN O'TISH
 router.post('/register', async (req, res) => {
+  const lang = getLang(req);
   try {
-    const { username, email, password, captchaToken, captchaAnswer } = req.body;
+    const { firstName, lastName, phone, password, captchaToken, captchaAnswer } = req.body;
 
-    if (!username || !email || !password)
-      return res.status(400).json({ error: 'Barcha maydonlarni to\'ldiring' });
+    if (!firstName || !lastName || !phone || !password)
+      return res.status(400).json({ error: t('fields_required', lang) });
 
     // CAPTCHA tekshiruv
     if (!captchaToken || captchaAnswer === undefined)
-      return res.status(400).json({ error: 'CAPTCHA majburiy' });
+      return res.status(400).json({ error: t('captcha_required', lang) });
     try {
       const decoded = jwt.verify(captchaToken, JWT_SECRET);
       if (parseInt(captchaAnswer) !== decoded.answer)
-        return res.status(400).json({ error: 'CAPTCHA noto\'g\'ri, qaytadan urinib ko\'ring' });
+        return res.status(400).json({ error: t('captcha_wrong', lang) });
     } catch {
-      return res.status(400).json({ error: 'CAPTCHA muddati o\'tdi, yangi savol oling' });
+      return res.status(400).json({ error: t('captcha_expired', lang) });
     }
 
     if (password.length < 6)
-      return res.status(400).json({ error: 'Parol kamida 6 belgi bo\'lishi kerak' });
+      return res.status(400).json({ error: t('password_short', lang) });
     if (password.length > 72)
-      return res.status(400).json({ error: 'Parol 72 belgidan oshmasligi kerak' });
+      return res.status(400).json({ error: t('password_long', lang) });
 
-    if (!isValidEmail(email))
-      return res.status(400).json({ error: 'Email formati noto\'g\'ri' });
+    if (!isValidName(firstName) || !isValidName(lastName))
+      return res.status(400).json({ error: t('name_invalid', lang) });
 
-    const cleanUsername = sanitize(username);
-    if (cleanUsername.length < 3 || cleanUsername.length > 30)
-      return res.status(400).json({ error: 'Foydalanuvchi nomi 3–30 belgi bo\'lishi kerak' });
-    if (!/^[a-zA-Z0-9_]+$/.test(username))
-      return res.status(400).json({ error: 'Foydalanuvchi nomida faqat harf, raqam va _ bo\'lishi mumkin' });
+    const normalizedPhone = normalizePhone(phone);
+    if (!normalizedPhone)
+      return res.status(400).json({ error: t('phone_invalid', lang) });
+
+    const cleanFirstName = sanitize(firstName);
+    const cleanLastName = sanitize(lastName);
 
     const hash = await bcrypt.hash(password, 10);
-    const cleanEmail = email.toLowerCase().trim();
     const user = await users.insertAsync({
-      username: cleanUsername,
-      email: cleanEmail,
+      firstName: cleanFirstName,
+      lastName: cleanLastName,
+      phone: normalizedPhone,
       password: hash,
       created_at: new Date()
     });
 
     const token = jwt.sign(
-      { id: user._id, username: cleanUsername, email: cleanEmail },
+      { id: user._id, firstName: cleanFirstName, lastName: cleanLastName, phone: normalizedPhone },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
-    res.json({ token, user: { id: user._id, username: cleanUsername, email: cleanEmail } });
+    res.json({
+      token,
+      user: { id: user._id, firstName: cleanFirstName, lastName: cleanLastName, phone: normalizedPhone, isAdmin: isAdminUser(user) }
+    });
   } catch (e) {
     if (e.errorType === 'uniqueViolated') {
-      return res.status(409).json({ error: 'Bu username yoki email allaqachon mavjud' });
+      return res.status(409).json({ error: t('phone_taken', lang) });
     }
     console.error('❌ Register xatosi:', e.message);
-    res.status(500).json({ error: 'Server xatosi, qayta urinib ko\'ring' });
+    res.status(500).json({ error: t('server_error', lang) });
   }
 });
 
 // KIRISH
 router.post('/login', async (req, res) => {
+  const lang = getLang(req);
   try {
-    const { email, password } = req.body;
+    const { phone, password } = req.body;
 
-    if (!email || !password)
-      return res.status(400).json({ error: 'Email va parolni kiriting' });
+    if (!phone || !password)
+      return res.status(400).json({ error: t('fields_required', lang) });
     if (password.length > 72)
-      return res.status(400).json({ error: 'Noto\'g\'ri ma\'lumotlar' });
+      return res.status(400).json({ error: t('login_wrong', lang) });
 
-    const user = await users.findOneAsync({ email: email.toLowerCase().trim() });
-    if (!user) return res.status(401).json({ error: 'Email yoki parol noto\'g\'ri' });
+    const normalizedPhone = normalizePhone(phone);
+    if (!normalizedPhone)
+      return res.status(400).json({ error: t('phone_invalid', lang) });
 
-    if (user.isBanned) return res.status(403).json({ error: 'Hisobingiz bloklangan. Admin bilan bog\'laning.' });
+    const user = await users.findOneAsync({ phone: normalizedPhone });
+    if (!user) return res.status(401).json({ error: t('login_wrong', lang) });
+
+    if (user.isBanned) return res.status(403).json({ error: t('banned', lang) });
     const match = await bcrypt.compare(password, user.password);
-    if (!match) return res.status(401).json({ error: 'Email yoki parol noto\'g\'ri' });
+    if (!match) return res.status(401).json({ error: t('login_wrong', lang) });
 
     const token = jwt.sign(
-      { id: user._id, username: user.username, email: user.email },
+      { id: user._id, firstName: user.firstName, lastName: user.lastName, phone: user.phone },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
-    const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase());
-    const isAdmin = user.isAdmin === true || adminEmails.includes((user.email || '').toLowerCase());
     res.json({
       token,
-      user: { id: user._id, username: user.username, email: user.email, isAdmin }
+      user: { id: user._id, firstName: user.firstName, lastName: user.lastName, phone: user.phone, isAdmin: isAdminUser(user) }
     });
   } catch (e) {
     console.error('❌ Login xatosi:', e.message);
-    res.status(500).json({ error: 'Server xatosi, qayta urinib ko\'ring' });
+    res.status(500).json({ error: t('server_error', lang) });
   }
 });
 
 // JORIY FOYDALANUVCHI
 router.get('/me', require('../middleware/auth'), async (req, res) => {
+  const lang = getLang(req);
   try {
     const user = await users.findOneAsync({ _id: req.user.id });
-    if (!user) return res.status(404).json({ error: 'Foydalanuvchi topilmadi' });
-    const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase());
-    const isAdmin = user.isAdmin === true || adminEmails.includes((user.email || '').toLowerCase());
-    res.json({ id: user._id, username: user.username, email: user.email, isAdmin });
+    if (!user) return res.status(404).json({ error: t('user_not_found', lang) });
+    res.json({ id: user._id, firstName: user.firstName, lastName: user.lastName, phone: user.phone, isAdmin: isAdminUser(user) });
   } catch (e) {
     console.error('❌ /me xatosi:', e.message);
-    res.status(500).json({ error: 'Server xatosi' });
+    res.status(500).json({ error: t('server_error', lang) });
   }
 });
 

@@ -3,77 +3,85 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const auth = require('../middleware/auth');
 const { users } = require('../database');
+const { t, getLang } = require('../lib/i18nServer');
+
+function isValidName(name) {
+  const clean = String(name || '').trim();
+  return clean.length >= 2 && clean.length <= 30 && /^[a-zA-Zа-яА-ЯёЁʻʼ'\- ]+$/.test(clean);
+}
 
 // ==================== PROFIL MA'LUMOTLARI ====================
 router.get('/', auth, async (req, res) => {
+  const lang = getLang(req);
   try {
     const user = await users.findOneAsync({ _id: req.user.id });
-    if (!user) return res.status(404).json({ error: 'Foydalanuvchi topilmadi' });
+    if (!user) return res.status(404).json({ error: t('user_not_found', lang) });
 
     res.json({
       id: user._id,
-      username: user.username,
-      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      phone: user.phone,
       isAdmin: !!user.isAdmin,
       created_at: user.created_at,
     });
   } catch (e) {
     console.error('❌ profile GET xatosi:', e.message);
-    res.status(500).json({ error: 'Server xatosi' });
+    res.status(500).json({ error: t('server_error', lang) });
   }
 });
 
-// ==================== USERNAME TAHRIRLASH ====================
+// ==================== ISM/FAMILIYA TAHRIRLASH ====================
 router.put('/', auth, async (req, res) => {
+  const lang = getLang(req);
   try {
-    const { username } = req.body;
+    const { firstName, lastName } = req.body;
     const update = {};
 
-    if (username !== undefined) {
-      const clean = String(username).trim();
-      if (!/^[a-zA-Z0-9_]{3,30}$/.test(clean))
-        return res.status(400).json({ error: 'Username: 3-30 belgi, faqat harf/raqam/_' });
-      // Band emasligini tekshir
-      const existing = await users.findOneAsync({ username: clean });
-      if (existing && existing._id !== req.user.id)
-        return res.status(409).json({ error: 'Bu username band' });
-      update.username = clean;
+    if (firstName !== undefined) {
+      if (!isValidName(firstName)) return res.status(400).json({ error: t('name_invalid', lang) });
+      update.firstName = String(firstName).trim();
+    }
+    if (lastName !== undefined) {
+      if (!isValidName(lastName)) return res.status(400).json({ error: t('name_invalid', lang) });
+      update.lastName = String(lastName).trim();
     }
 
     if (Object.keys(update).length === 0)
-      return res.status(400).json({ error: 'Hech narsa o\'zgartirilmadi' });
+      return res.status(400).json({ error: t('nothing_changed', lang) });
 
     await users.updateAsync({ _id: req.user.id }, { $set: update });
     res.json({ success: true, ...update });
   } catch (e) {
     console.error('❌ profile PUT xatosi:', e.message);
-    res.status(500).json({ error: 'Server xatosi' });
+    res.status(500).json({ error: t('server_error', lang) });
   }
 });
 
 // ==================== PAROL O'ZGARTIRISH ====================
 router.put('/password', auth, async (req, res) => {
+  const lang = getLang(req);
   try {
     const { currentPassword, newPassword } = req.body;
 
     if (!currentPassword || !newPassword)
-      return res.status(400).json({ error: 'Barcha maydonlarni to\'ldiring' });
+      return res.status(400).json({ error: t('fields_required', lang) });
     if (newPassword.length < 6)
-      return res.status(400).json({ error: 'Yangi parol kamida 6 belgi' });
+      return res.status(400).json({ error: t('password_short', lang) });
     if (newPassword.length > 72)
-      return res.status(400).json({ error: 'Parol 72 belgidan oshmasin' });
+      return res.status(400).json({ error: t('password_long', lang) });
 
     const user = await users.findOneAsync({ _id: req.user.id });
     const match = await bcrypt.compare(currentPassword, user.password);
     if (!match)
-      return res.status(401).json({ error: 'Joriy parol noto\'g\'ri' });
+      return res.status(401).json({ error: t('current_pass_wrong', lang) });
 
     const hash = await bcrypt.hash(newPassword, 10);
     await users.updateAsync({ _id: req.user.id }, { $set: { password: hash } });
     res.json({ success: true });
   } catch (e) {
     console.error('❌ profile/password xatosi:', e.message);
-    res.status(500).json({ error: 'Server xatosi' });
+    res.status(500).json({ error: t('server_error', lang) });
   }
 });
 
