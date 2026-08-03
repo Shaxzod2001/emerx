@@ -2,14 +2,12 @@
 const I18N = {
   ru: {
     logo_sub: 'Система контроля обеденных перерывов',
-    nav_login: 'Войти', nav_register: 'Регистрация', nav_dashboard: 'Обед',
+    nav_login: 'Войти', nav_dashboard: 'Обед',
     nav_admin: 'Админ', nav_profile: 'Профиль', nav_logout: 'Выйти',
 
-    auth_tab_login: 'Вход', auth_tab_register: 'Регистрация',
     field_firstname: 'Имя', field_lastname: 'Фамилия', field_phone: 'Номер телефона',
     field_password: 'Пароль', field_password_current: 'Текущий пароль', field_password_new: 'Новый пароль',
-    btn_login: 'Войти', btn_register: 'Зарегистрироваться', btn_save: 'Сохранить', btn_change_password: 'Изменить пароль',
-    captcha_label: 'Проверка', captcha_loading: 'загрузка...',
+    btn_login: 'Войти', btn_save: 'Сохранить', btn_change_password: 'Изменить пароль',
 
     dashboard_title: '🕐 Контроль обеда', dashboard_subtitle: 'Управление временем обеденного перерыва сотрудников',
     self_label: 'Ваш статус',
@@ -36,23 +34,28 @@ const I18N = {
     role_admin: '⭐ Админ', role_employee: 'Сотрудник', banned_label: '🚫 Заблокирован',
     btn_ban: 'Заблокировать', btn_unban: 'Разблокировать', btn_make_admin: 'Сделать админом', btn_remove_admin: 'Снять админа',
 
+    section_add_employee: '➕ Добавить сотрудника', btn_add_employee: 'Добавить',
+    section_danger: '⚠️ Опасная зона',
+    wipe_note: 'Удалить всех сотрудников (кроме вас) и всю историю обедов — для чистого старта.',
+    btn_wipe_all: 'Очистить всех сотрудников',
+    wipe_confirm: 'Удалить ВСЕХ сотрудников и всю историю обедов? Это действие необратимо.',
+
     profile_title: '👤 Профиль',
 
     toast_went: '🍽️ Вы ушли на обед!', toast_queued: '⏳ Вы поставлены в очередь',
     toast_returned: '✅ С возвращением!', toast_queue_cancelled: 'Очередь отменена',
     toast_saved: '✅ Сохранено', toast_updated: '✅ Обновлено', toast_password_changed: '✅ Пароль изменён',
     toast_settings_saved: '✅ Настройки сохранены',
+    toast_employee_created: '✅ Сотрудник добавлен', toast_wipe_done: '✅ Все сотрудники удалены',
   },
   uz: {
     logo_sub: 'Xodimlarning abet vaqtini nazorat qilish tizimi',
-    nav_login: 'Kirish', nav_register: "Ro'yxatdan o'tish", nav_dashboard: 'Abet',
+    nav_login: 'Kirish', nav_dashboard: 'Abet',
     nav_admin: 'Admin', nav_profile: 'Profil', nav_logout: 'Chiqish',
 
-    auth_tab_login: 'Kirish', auth_tab_register: "Ro'yxatdan o'tish",
     field_firstname: 'Ism', field_lastname: 'Familiya', field_phone: 'Telefon raqam',
     field_password: 'Parol', field_password_current: 'Joriy parol', field_password_new: 'Yangi parol',
-    btn_login: 'Kirish', btn_register: "Ro'yxatdan o'tish", btn_save: 'Saqlash', btn_change_password: "Parolni o'zgartirish",
-    captcha_label: 'Tekshiruv', captcha_loading: 'yuklanmoqda...',
+    btn_login: 'Kirish', btn_save: 'Saqlash', btn_change_password: "Parolni o'zgartirish",
 
     dashboard_title: '🕐 Abet Nazorati', dashboard_subtitle: 'Xodimlarning tushlik tanaffusiga chiqish vaqtini boshqarish',
     self_label: 'Sizning holatingiz',
@@ -79,23 +82,28 @@ const I18N = {
     role_admin: '⭐ Admin', role_employee: 'Xodim', banned_label: '🚫 Bloklangan',
     btn_ban: 'Bloklash', btn_unban: 'Blokdan chiqarish', btn_make_admin: 'Admin qilish', btn_remove_admin: 'Admin olish',
 
+    section_add_employee: "➕ Xodim qo'shish", btn_add_employee: "Qo'shish",
+    section_danger: "⚠️ Xavfli hudud",
+    wipe_note: "Barcha xodimlarni (sizdan tashqari) va abet tarixini butunlay o'chirish — nol nuqtadan boshlash uchun.",
+    btn_wipe_all: 'Barcha xodimlarni tozalash',
+    wipe_confirm: "BARCHA xodimlar va abet tarixi o'chiriladi. Bu amalni ortga qaytarib bo'lmaydi. Davom etaymi?",
+
     profile_title: '👤 Profil',
 
     toast_went: '🍽️ Abetga chiqdingiz!', toast_queued: "⏳ Navbatga qo'yildingiz",
     toast_returned: '✅ Qaytdingiz!', toast_queue_cancelled: 'Navbat bekor qilindi',
     toast_saved: '✅ Saqlandi', toast_updated: '✅ Yangilandi', toast_password_changed: "✅ Parol o'zgartirildi",
     toast_settings_saved: '✅ Sozlamalar saqlandi',
+    toast_employee_created: "✅ Xodim qo'shildi", toast_wipe_done: '✅ Barcha xodimlar tozalandi',
   },
   tj: {
     logo_sub: 'Низоми назорати вақти танаффуси хӯроки корманд',
-    nav_login: 'Даромадан', nav_register: 'Бақайдгирӣ', nav_dashboard: 'Танаффус',
+    nav_login: 'Даромадан', nav_dashboard: 'Танаффус',
     nav_admin: 'Админ', nav_profile: 'Профил', nav_logout: 'Баромадан',
 
-    auth_tab_login: 'Вуруд', auth_tab_register: 'Бақайдгирӣ',
     field_firstname: 'Ном', field_lastname: 'Насаб', field_phone: 'Рақами телефон',
     field_password: 'Парол', field_password_current: 'Пароли ҷорӣ', field_password_new: 'Пароли нав',
-    btn_login: 'Даромадан', btn_register: 'Бақайдгирӣ кардан', btn_save: 'Сабт кардан', btn_change_password: 'Тағйир додани парол',
-    captcha_label: 'Санҷиш', captcha_loading: 'боркунӣ...',
+    btn_login: 'Даромадан', btn_save: 'Сабт кардан', btn_change_password: 'Тағйир додани парол',
 
     dashboard_title: '🕐 Назорати танаффус', dashboard_subtitle: 'Идоракунии вақти танаффуси хӯроки кормандон',
     self_label: 'Ҳолати шумо',
@@ -122,12 +130,19 @@ const I18N = {
     role_admin: '⭐ Админ', role_employee: 'Корманд', banned_label: '🚫 Баста',
     btn_ban: 'Бастан', btn_unban: 'Кушодан', btn_make_admin: 'Админ кардан', btn_remove_admin: 'Админро гирифтан',
 
+    section_add_employee: '➕ Илова кардани корманд', btn_add_employee: 'Илова кардан',
+    section_danger: '⚠️ Минтақаи хатарнок',
+    wipe_note: 'Ҳамаи кормандонро (ба ғайр аз шумо) ва таърихи танаффусро тоза кардан — барои сар кардан аз нав.',
+    btn_wipe_all: 'Ҳамаи кормандонро тоза кардан',
+    wipe_confirm: 'ҲАМАИ кормандон ва таърихи танаффус нест карда мешавад. Ин амалро баргардонидан мумкин нест. Идома медиҳед?',
+
     profile_title: '👤 Профил',
 
     toast_went: '🍽️ Шумо ба танаффус рафтед!', toast_queued: '⏳ Шумо ба навбат гузошта шудед',
     toast_returned: '✅ Хуш омадед!', toast_queue_cancelled: 'Навбат бекор карда шуд',
     toast_saved: '✅ Сабт шуд', toast_updated: '✅ Навсозӣ шуд', toast_password_changed: '✅ Парол тағйир ёфт',
     toast_settings_saved: '✅ Танзимот сабт шуд',
+    toast_employee_created: '✅ Корманд илова карда шуд', toast_wipe_done: '✅ Ҳамаи кормандон тоза карда шуданд',
   },
 };
 
