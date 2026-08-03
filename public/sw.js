@@ -1,4 +1,4 @@
-const CACHE = 'emerx-v3';
+const CACHE = 'emerx-v4';
 const STATIC = [
   '/',
   '/index.html',
