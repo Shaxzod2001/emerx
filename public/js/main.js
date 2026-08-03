@@ -76,6 +76,7 @@ function setLang(lang) {
 function applyStaticText() {
   const setText = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
   setText('nav-login', t('nav_login'));
+  setText('nav-register', t('nav_register'));
   setText('nav-dashboard', '🍽️ ' + t('nav_dashboard'));
   setText('nav-admin', '⚙️ ' + t('nav_admin'));
   setText('nav-logout', t('nav_logout'));
@@ -98,6 +99,21 @@ async function initAuth() {
 
 async function login(phone, password) {
   const res = await api('/auth/login', { method: 'POST', body: JSON.stringify({ phone, password }) });
+  if (res.token) {
+    state.token = res.token;
+    state.user = res.user;
+    localStorage.setItem('emerx_token', res.token);
+    connectSocket();
+    return { ok: true };
+  }
+  return { ok: false, error: res.error || 'Error' };
+}
+
+async function register(firstName, lastName, phone, password, captchaToken, captchaAnswer) {
+  const res = await api('/auth/register', {
+    method: 'POST',
+    body: JSON.stringify({ firstName, lastName, phone, password, captchaToken, captchaAnswer })
+  });
   if (res.token) {
     state.token = res.token;
     state.user = res.user;
@@ -624,9 +640,22 @@ async function changePassword() {
   toast(t('toast_password_changed'));
 }
 
-// ==================== AUTH SAHIFASI (faqat kirish, ro'yxatdan o'tish yopiq) ====================
+// ==================== AUTH SAHIFASI ====================
+// Eslatma: "Ro'yxatdan o'tish" faqat interfeysda ochiq — backend uni
+// ADMIN_PHONES ro'yxatidagi raqamlar bilan cheklaydi (birinchi super-admin
+// akkauntini yaratish uchun). Boshqa xodimlar admin panel orqali qo'shiladi.
+let captchaState = null;
+
+async function loadCaptcha() {
+  const res = await api('/auth/captcha');
+  captchaState = res;
+  const q = document.getElementById('captcha-question');
+  if (q) q.textContent = res.question || '?';
+}
+
 function renderAuth() {
   const page = document.getElementById('page-auth');
+  const tab = page.dataset.tab || 'login';
   page.innerHTML = `
     <div class="auth-page">
       <div class="auth-card">
@@ -635,22 +664,74 @@ function renderAuth() {
           <p>${t('logo_sub')}</p>
         </div>
 
-        <form id="login-form">
-          <div class="form-group">
-            <label class="form-label">${t('field_phone')}</label>
-            <input type="tel" class="form-input" id="login-phone" placeholder="+7 ___ ___-__-__" required>
-          </div>
-          <div class="form-group">
-            <label class="form-label">${t('field_password')}</label>
-            <input type="password" class="form-input" id="login-password" required>
-          </div>
-          <div class="error-msg" id="login-error"></div>
-          <button type="submit" class="btn btn-primary btn-full">${t('btn_login')}</button>
-        </form>
+        <div class="auth-tabs">
+          <button class="auth-tab ${tab === 'login' ? 'active' : ''}" onclick="switchAuthTab('login')">${t('auth_tab_login')}</button>
+          <button class="auth-tab ${tab === 'register' ? 'active' : ''}" onclick="switchAuthTab('register')">${t('auth_tab_register')}</button>
+        </div>
+
+        ${tab === 'login' ? loginFormHtml() : registerFormHtml()}
       </div>
     </div>
   `;
-  document.getElementById('login-form').addEventListener('submit', onLoginSubmit);
+
+  if (tab === 'login') {
+    document.getElementById('login-form').addEventListener('submit', onLoginSubmit);
+  } else {
+    document.getElementById('register-form').addEventListener('submit', onRegisterSubmit);
+    loadCaptcha();
+  }
+}
+
+function switchAuthTab(tab) {
+  document.getElementById('page-auth').dataset.tab = tab;
+  renderAuth();
+}
+
+function loginFormHtml() {
+  return `
+    <form id="login-form">
+      <div class="form-group">
+        <label class="form-label">${t('field_phone')}</label>
+        <input type="tel" class="form-input" id="login-phone" placeholder="+7 ___ ___-__-__" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">${t('field_password')}</label>
+        <input type="password" class="form-input" id="login-password" required>
+      </div>
+      <div class="error-msg" id="login-error"></div>
+      <button type="submit" class="btn btn-primary btn-full">${t('btn_login')}</button>
+    </form>
+  `;
+}
+
+function registerFormHtml() {
+  return `
+    <form id="register-form">
+      <p style="color:var(--text2);font-size:0.82rem;margin-bottom:16px">${t('register_note')}</p>
+      <div class="form-group">
+        <label class="form-label">${t('field_firstname')}</label>
+        <input class="form-input" id="reg-firstname" required minlength="2" maxlength="30">
+      </div>
+      <div class="form-group">
+        <label class="form-label">${t('field_lastname')}</label>
+        <input class="form-input" id="reg-lastname" required minlength="2" maxlength="30">
+      </div>
+      <div class="form-group">
+        <label class="form-label">${t('field_phone')}</label>
+        <input type="tel" class="form-input" id="reg-phone" placeholder="+7 ___ ___-__-__" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">${t('field_password')}</label>
+        <input type="password" class="form-input" id="reg-password" required minlength="6">
+      </div>
+      <div class="form-group">
+        <label class="form-label">${t('captcha_label')}: <span id="captcha-question">${t('captcha_loading')}</span></label>
+        <input class="form-input" id="reg-captcha" required>
+      </div>
+      <div class="error-msg" id="register-error"></div>
+      <button type="submit" class="btn btn-primary btn-full">${t('btn_register')}</button>
+    </form>
+  `;
 }
 
 async function onLoginSubmit(e) {
@@ -665,13 +746,37 @@ async function onLoginSubmit(e) {
   showPage('dashboard');
 }
 
+async function onRegisterSubmit(e) {
+  e.preventDefault();
+  const firstName = document.getElementById('reg-firstname').value.trim();
+  const lastName = document.getElementById('reg-lastname').value.trim();
+  const phone = document.getElementById('reg-phone').value.trim();
+  const password = document.getElementById('reg-password').value;
+  const captchaAnswer = document.getElementById('reg-captcha').value;
+  const errEl = document.getElementById('register-error');
+  errEl.textContent = '';
+
+  if (!captchaState) { errEl.textContent = 'Error'; return; }
+
+  const res = await register(firstName, lastName, phone, password, captchaState.token, captchaAnswer);
+  if (!res.ok) {
+    errEl.textContent = res.error;
+    loadCaptcha();
+    document.getElementById('reg-captcha').value = '';
+    return;
+  }
+  updateNavbar();
+  showPage('dashboard');
+}
+
 // ==================== INIT ====================
 document.addEventListener('DOMContentLoaded', async () => {
   document.querySelectorAll('.lang-btn').forEach(b => {
     b.onclick = () => setLang(b.dataset.lang);
   });
 
-  document.getElementById('nav-login').onclick = () => showPage('auth');
+  document.getElementById('nav-login').onclick = () => { document.getElementById('page-auth').dataset.tab = 'login'; showPage('auth'); };
+  document.getElementById('nav-register').onclick = () => { document.getElementById('page-auth').dataset.tab = 'register'; showPage('auth'); };
   document.getElementById('nav-dashboard').onclick = () => showPage('dashboard');
   document.getElementById('nav-admin').onclick = () => showPage('admin');
   document.getElementById('nav-profile').onclick = () => showPage('profile');
