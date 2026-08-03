@@ -1361,6 +1361,7 @@ body {
 }
 .settings-form .form-group { margin-bottom: 0; }
 .settings-form .error-msg { grid-column: 1 / -1; margin: 0; }
+.settings-form-wide { grid-template-columns: 1fr 1fr 1fr 1fr auto; }
 
 /* ========== HISTORY / USERS TABLE ========== */
 .history-table {

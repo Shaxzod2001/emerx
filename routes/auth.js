@@ -5,21 +5,10 @@ const jwt = require('jsonwebtoken');
 const { users } = require('../database');
 const { normalizePhone } = require('../lib/phone');
 const { t, getLang } = require('../lib/i18nServer');
+const { sanitize, isValidName } = require('../lib/validators');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'emerx_secret_2024';
 const ADMIN_PHONES = (process.env.ADMIN_PHONES || '').split(',').map(p => p.trim()).filter(Boolean);
-
-function sanitize(str) {
-  return String(str).replace(/[<>&"'`]/g, c => ({
-    '<': '&lt;', '>': '&gt;', '&': '&amp;',
-    '"': '&quot;', "'": '&#x27;', '`': '&#x60;'
-  }[c])).trim();
-}
-
-function isValidName(name) {
-  const clean = String(name || '').trim();
-  return clean.length >= 2 && clean.length <= 30 && /^[a-zA-Zа-яА-ЯёЁʻʼ'\- ]+$/.test(clean);
-}
 
 // CAPTCHA: matematik savol + imzolangan token
 router.get('/captcha', (req, res) => {
@@ -77,6 +66,12 @@ router.post('/register', async (req, res) => {
     if (!normalizedPhone)
       return res.status(400).json({ error: t('phone_invalid', lang) });
 
+    // Ochiq ro'yxatdan o'tish faqat ADMIN_PHONES ro'yxatidagi raqamlar uchun
+    // (birinchi super-admin akkauntini yaratish uchun). Qolgan xodimlarni
+    // faqat admin panel orqali admin qo'sha oladi.
+    if (!ADMIN_PHONES.includes(normalizedPhone))
+      return res.status(403).json({ error: t('registration_closed', lang) });
+
     const cleanFirstName = sanitize(firstName);
     const cleanLastName = sanitize(lastName);
 
@@ -86,6 +81,7 @@ router.post('/register', async (req, res) => {
       lastName: cleanLastName,
       phone: normalizedPhone,
       password: hash,
+      isAdmin: true,
       created_at: new Date()
     });
 

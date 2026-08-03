@@ -1,9 +1,12 @@
 const express = require('express');
 const router = express.Router();
+const bcrypt = require('bcryptjs');
 const adminAuth = require('../middleware/adminAuth');
 const { users, breaks } = require('../database');
 const { todayStr } = require('../lib/breakSettings');
 const { t, getLang } = require('../lib/i18nServer');
+const { sanitize, isValidName } = require('../lib/validators');
+const { normalizePhone } = require('../lib/phone');
 
 // Barcha admin routelari himoyalangan
 router.use(adminAuth);
@@ -114,6 +117,72 @@ router.delete('/users/:id', async (req, res) => {
     await users.updateAsync({ _id: req.params.id }, { $set: { _deleted: true, firstName: '[o\'chirilgan]', lastName: '', phone: `deleted_${req.params.id}` } });
     res.json({ success: true });
   } catch (e) {
+    res.status(500).json({ error: t('server_error', lang) });
+  }
+});
+
+// ==================== XODIM QO'SHISH (admin tomonidan) ====================
+router.post('/employees', async (req, res) => {
+  const lang = getLang(req);
+  try {
+    const { firstName, lastName, phone, password } = req.body;
+
+    if (!firstName || !lastName || !phone || !password)
+      return res.status(400).json({ error: t('fields_required', lang) });
+    if (!isValidName(firstName) || !isValidName(lastName))
+      return res.status(400).json({ error: t('name_invalid', lang) });
+    if (password.length < 6)
+      return res.status(400).json({ error: t('password_short', lang) });
+    if (password.length > 72)
+      return res.status(400).json({ error: t('password_long', lang) });
+
+    const normalizedPhone = normalizePhone(phone);
+    if (!normalizedPhone)
+      return res.status(400).json({ error: t('phone_invalid', lang) });
+
+    const hash = await bcrypt.hash(password, 10);
+    const user = await users.insertAsync({
+      firstName: sanitize(firstName),
+      lastName: sanitize(lastName),
+      phone: normalizedPhone,
+      password: hash,
+      isAdmin: false,
+      created_at: new Date(),
+    });
+
+    res.json({
+      success: true,
+      user: { id: user._id, firstName: user.firstName, lastName: user.lastName, phone: user.phone },
+    });
+  } catch (e) {
+    if (e.errorType === 'uniqueViolated') {
+      return res.status(409).json({ error: t('phone_taken', lang) });
+    }
+    console.error('admin/employees POST xato:', e.message);
+    res.status(500).json({ error: t('server_error', lang) });
+  }
+});
+
+// ==================== BARCHA XODIMLARNI TOZALASH ====================
+// O'zini (chaqiruvchi adminni) saqlab qolgan holda qolgan hammani soft-delete qiladi
+// va bugungi/o'tgan abet yozuvlarini tozalaydi — yangi jamoani nol nuqtadan boshlash uchun.
+router.post('/wipe-all', async (req, res) => {
+  const lang = getLang(req);
+  try {
+    const all = await users.findAsync({});
+    for (const u of all) {
+      if (u._id === req.adminUser._id) continue;
+      await users.updateAsync({ _id: u._id }, { $set: { _deleted: true, firstName: '[o\'chirilgan]', lastName: '', phone: `deleted_${u._id}` } });
+    }
+
+    const allBreaks = await breaks.findAsync({});
+    for (const b of allBreaks) {
+      await breaks.updateAsync({ _id: b._id }, { $set: { _wiped: true, status: 'cancelled' } });
+    }
+
+    res.json({ success: true, message: t('wipe_done', lang) });
+  } catch (e) {
+    console.error('admin/wipe-all xato:', e.message);
     res.status(500).json({ error: t('server_error', lang) });
   }
 });
