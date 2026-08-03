@@ -2,12 +2,15 @@
 const I18N = {
   ru: {
     logo_sub: 'Система контроля обеденных перерывов',
-    nav_login: 'Войти', nav_dashboard: 'Обед',
+    nav_login: 'Войти', nav_register: 'Регистрация', nav_dashboard: 'Обед',
     nav_admin: 'Админ', nav_profile: 'Профиль', nav_logout: 'Выйти',
 
+    auth_tab_login: 'Вход', auth_tab_register: 'Регистрация',
+    register_note: 'Самостоятельная регистрация доступна только для номера первого администратора. Остальных сотрудников добавляет администратор из панели управления.',
     field_firstname: 'Имя', field_lastname: 'Фамилия', field_phone: 'Номер телефона',
     field_password: 'Пароль', field_password_current: 'Текущий пароль', field_password_new: 'Новый пароль',
-    btn_login: 'Войти', btn_save: 'Сохранить', btn_change_password: 'Изменить пароль',
+    btn_login: 'Войти', btn_register: 'Зарегистрироваться', btn_save: 'Сохранить', btn_change_password: 'Изменить пароль',
+    captcha_label: 'Проверка', captcha_loading: 'загрузка...',
 
     dashboard_title: '🕐 Контроль обеда', dashboard_subtitle: 'Управление временем обеденного перерыва сотрудников',
     self_label: 'Ваш статус',
@@ -50,12 +53,15 @@ const I18N = {
   },
   uz: {
     logo_sub: 'Xodimlarning abet vaqtini nazorat qilish tizimi',
-    nav_login: 'Kirish', nav_dashboard: 'Abet',
+    nav_login: 'Kirish', nav_register: "Ro'yxatdan o'tish", nav_dashboard: 'Abet',
     nav_admin: 'Admin', nav_profile: 'Profil', nav_logout: 'Chiqish',
 
+    auth_tab_login: 'Kirish', auth_tab_register: "Ro'yxatdan o'tish",
+    register_note: "O'z-o'zidan ro'yxatdan o'tish faqat birinchi admin raqami uchun ochiq. Qolgan xodimlarni admin boshqaruv panelidan qo'shadi.",
     field_firstname: 'Ism', field_lastname: 'Familiya', field_phone: 'Telefon raqam',
     field_password: 'Parol', field_password_current: 'Joriy parol', field_password_new: 'Yangi parol',
-    btn_login: 'Kirish', btn_save: 'Saqlash', btn_change_password: "Parolni o'zgartirish",
+    btn_login: 'Kirish', btn_register: "Ro'yxatdan o'tish", btn_save: 'Saqlash', btn_change_password: "Parolni o'zgartirish",
+    captcha_label: 'Tekshiruv', captcha_loading: 'yuklanmoqda...',
 
     dashboard_title: '🕐 Abet Nazorati', dashboard_subtitle: 'Xodimlarning tushlik tanaffusiga chiqish vaqtini boshqarish',
     self_label: 'Sizning holatingiz',
@@ -98,12 +104,15 @@ const I18N = {
   },
   tj: {
     logo_sub: 'Низоми назорати вақти танаффуси хӯроки корманд',
-    nav_login: 'Даромадан', nav_dashboard: 'Танаффус',
+    nav_login: 'Даромадан', nav_register: 'Бақайдгирӣ', nav_dashboard: 'Танаффус',
     nav_admin: 'Админ', nav_profile: 'Профил', nav_logout: 'Баромадан',
 
+    auth_tab_login: 'Вуруд', auth_tab_register: 'Бақайдгирӣ',
+    register_note: 'Бақайдгирии мустақилона танҳо барои рақами администратори якум кушода аст. Дигар кормандонро администратор аз панели идора илова мекунад.',
     field_firstname: 'Ном', field_lastname: 'Насаб', field_phone: 'Рақами телефон',
     field_password: 'Парол', field_password_current: 'Пароли ҷорӣ', field_password_new: 'Пароли нав',
-    btn_login: 'Даромадан', btn_save: 'Сабт кардан', btn_change_password: 'Тағйир додани парол',
+    btn_login: 'Даромадан', btn_register: 'Бақайдгирӣ кардан', btn_save: 'Сабт кардан', btn_change_password: 'Тағйир додани парол',
+    captcha_label: 'Санҷиш', captcha_loading: 'боркунӣ...',
 
     dashboard_title: '🕐 Назорати танаффус', dashboard_subtitle: 'Идоракунии вақти танаффуси хӯроки кормандон',
     self_label: 'Ҳолати шумо',
