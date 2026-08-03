@@ -1,7 +1,7 @@
 {
   "name": "emerx",
   "version": "1.0.0",
-  "description": "EmerX - Cybersecurity Learning Platform",
+  "description": "EmerX - Xodimlar abet (tushlik tanaffusi) nazorati tizimi",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

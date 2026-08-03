@@ -207,30 +207,24 @@ function makeSmartCollection(name, indexes = []) {
 }
 
 // ==================== EKSPORT ====================
-let users, progress, quizResults, customCourses, messages;
+let users, breaks, settings;
 
 if (USE_LOCAL_DB) {
   console.log('📁 NeDB (lokal) ishlatilmoqda — data/ papkasi');
-  users         = makeNedbCollection('users',    [{ fieldName: 'email', unique: true }, { fieldName: 'username', unique: true }]);
-  progress      = makeNedbCollection('progress', [{ fieldName: 'user_lesson', unique: true }]);
-  quizResults   = makeNedbCollection('quiz_results');
-  customCourses = makeNedbCollection('custom_courses');
-  messages      = makeNedbCollection('messages');
+  users    = makeNedbCollection('users', [{ fieldName: 'email', unique: true }, { fieldName: 'username', unique: true }]);
+  breaks   = makeNedbCollection('breaks');
+  settings = makeNedbCollection('settings');
 } else {
   console.log('☁️  MongoDB Atlas sinab ko\'rilmoqda, muvaffaqiyatsiz bo\'lsa NeDB...');
-  users         = makeSmartCollection('users',    [{ fieldName: 'email', unique: true }, { fieldName: 'username', unique: true }]);
-  progress      = makeSmartCollection('progress', [{ fieldName: 'user_lesson', unique: true }]);
-  quizResults   = makeSmartCollection('quiz_results');
-  customCourses = makeSmartCollection('custom_courses');
-  messages      = makeSmartCollection('messages');
+  users    = makeSmartCollection('users', [{ fieldName: 'email', unique: true }, { fieldName: 'username', unique: true }]);
+  breaks   = makeSmartCollection('breaks');
+  settings = makeSmartCollection('settings');
 }
 
 module.exports = {
   users,
-  progress,
-  quizResults,
-  customCourses,
-  messages,
+  breaks,
+  settings,
   getDb: USE_LOCAL_DB ? null : getDb,
   checkAtlas: USE_LOCAL_DB ? null : checkAtlas,
 };

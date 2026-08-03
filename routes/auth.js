@@ -39,7 +39,7 @@ router.get('/captcha', (req, res) => {
 // RO'YXATDAN O'TISH
 router.post('/register', async (req, res) => {
   try {
-    const { username, email, password, lang, captchaToken, captchaAnswer } = req.body;
+    const { username, email, password, captchaToken, captchaAnswer } = req.body;
 
     if (!username || !email || !password)
       return res.status(400).json({ error: 'Barcha maydonlarni to\'ldiring' });
@@ -75,8 +75,6 @@ router.post('/register', async (req, res) => {
       username: cleanUsername,
       email: cleanEmail,
       password: hash,
-      lang: lang || 'uz',
-      coins: 0,
       created_at: new Date()
     });
 
@@ -85,7 +83,7 @@ router.post('/register', async (req, res) => {
       JWT_SECRET,
       { expiresIn: '7d' }
     );
-    res.json({ token, user: { id: user._id, username: cleanUsername, email: cleanEmail, lang: lang || 'uz' } });
+    res.json({ token, user: { id: user._id, username: cleanUsername, email: cleanEmail } });
   } catch (e) {
     if (e.errorType === 'uniqueViolated') {
       return res.status(409).json({ error: 'Bu username yoki email allaqachon mavjud' });
@@ -121,7 +119,7 @@ router.post('/login', async (req, res) => {
     const isAdmin = user.isAdmin === true || adminEmails.includes((user.email || '').toLowerCase());
     res.json({
       token,
-      user: { id: user._id, username: user.username, email: user.email, lang: user.lang, isAdmin }
+      user: { id: user._id, username: user.username, email: user.email, isAdmin }
     });
   } catch (e) {
     console.error('❌ Login xatosi:', e.message);
@@ -134,23 +132,11 @@ router.get('/me', require('../middleware/auth'), async (req, res) => {
   try {
     const user = await users.findOneAsync({ _id: req.user.id });
     if (!user) return res.status(404).json({ error: 'Foydalanuvchi topilmadi' });
-    res.json({ id: user._id, username: user.username, email: user.email, lang: user.lang, coins: user.coins || 0 });
+    const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase());
+    const isAdmin = user.isAdmin === true || adminEmails.includes((user.email || '').toLowerCase());
+    res.json({ id: user._id, username: user.username, email: user.email, isAdmin });
   } catch (e) {
     console.error('❌ /me xatosi:', e.message);
-    res.status(500).json({ error: 'Server xatosi' });
-  }
-});
-
-// TIL O'ZGARTIRISH
-router.put('/lang', require('../middleware/auth'), async (req, res) => {
-  try {
-    const { lang } = req.body;
-    if (!['uz', 'ru', 'en'].includes(lang))
-      return res.status(400).json({ error: 'Noto\'g\'ri til' });
-    await users.updateAsync({ _id: req.user.id }, { $set: { lang } });
-    res.json({ success: true });
-  } catch (e) {
-    console.error('❌ /lang xatosi:', e.message);
     res.status(500).json({ error: 'Server xatosi' });
   }
 });
