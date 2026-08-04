@@ -108,6 +108,31 @@ router.put('/users/:id/ban', async (req, res) => {
   }
 });
 
+// ==================== PAROLNI QAYTA O'RNATISH (admin tomonidan) ====================
+router.put('/users/:id/password', async (req, res) => {
+  const lang = getLang(req);
+  try {
+    const { newPassword } = req.body;
+    if (!newPassword)
+      return res.status(400).json({ error: t('fields_required', lang) });
+    if (newPassword.length < 6)
+      return res.status(400).json({ error: t('password_short', lang) });
+    if (newPassword.length > 72)
+      return res.status(400).json({ error: t('password_long', lang) });
+
+    const target = await users.findOneAsync({ _id: req.params.id });
+    if (!target || target._deleted)
+      return res.status(404).json({ error: t('not_found', lang) });
+
+    const hash = await bcrypt.hash(newPassword, 10);
+    await users.updateAsync({ _id: req.params.id }, { $set: { password: hash } });
+    res.json({ success: true });
+  } catch (e) {
+    console.error('admin/users/password PUT xato:', e.message);
+    res.status(500).json({ error: t('server_error', lang) });
+  }
+});
+
 // ==================== FOYDALANUVCHINI O'CHIRISH ====================
 router.delete('/users/:id', async (req, res) => {
   const lang = getLang(req);
