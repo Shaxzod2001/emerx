@@ -119,12 +119,28 @@ async function getDb() {
 }
 
 function makeMongoCollection(name, indexes = []) {
-  getDb().then(db => {
-    indexes.forEach(({ fieldName, unique }) => {
-      db.collection(name)
+  getDb().then(async db => {
+    // Eski sxemadan qolgan unique indekslarni tozalash (masalan avvalgi
+    // email/username unique indekslari) — aks holda yangi hujjatlarda
+    // o'sha eski maydon yo'q (null) bo'lgani uchun 2-yozuvdan boshlab
+    // "duplicate key" xatosi chiqadi, garchi hozirgi maydon (masalan phone)
+    // band bo'lmasa ham.
+    try {
+      const desired = new Set(indexes.map(({ fieldName }) => `${fieldName}_1`));
+      const existing = await db.collection(name).indexes();
+      for (const idx of existing) {
+        if (idx.name === '_id_' || desired.has(idx.name)) continue;
+        if (idx.unique) {
+          await db.collection(name).dropIndex(idx.name).catch(() => {});
+        }
+      }
+    } catch {}
+
+    for (const { fieldName, unique } of indexes) {
+      await db.collection(name)
         .createIndex({ [fieldName]: 1 }, unique ? { unique: true } : {})
         .catch(() => {});
-    });
+    }
   }).catch(() => {});
 
   return {
