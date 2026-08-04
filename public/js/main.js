@@ -142,6 +142,7 @@ function connectSocket() {
     if (state.currentPage === 'dashboard' || state.currentPage === 'admin') {
       loadStatusAndRender();
     }
+    if (state.currentPage === 'dashboard') loadSchedule();
   });
 }
 function disconnectSocket() {
@@ -187,7 +188,7 @@ function showPage(name) {
   clearInterval(pollTimer);
 
   if (name === 'auth') renderAuth();
-  if (name === 'dashboard') { renderDashboardShell(); loadStatusAndRender(); startPolling(); }
+  if (name === 'dashboard') { renderDashboardShell(); loadStatusAndRender(); loadSchedule(); startPolling(); }
   if (name === 'admin') { renderAdminShell(); loadStatusAndRender(); loadAdminExtras(); startPolling(); }
   if (name === 'profile') renderProfile();
 
@@ -196,7 +197,10 @@ function showPage(name) {
 
 function startPolling() {
   // Socket ishlamay qolsa ham holat yangilanib tursin
-  pollTimer = setInterval(loadStatusAndRender, 20000);
+  pollTimer = setInterval(() => {
+    loadStatusAndRender();
+    if (state.currentPage === 'dashboard') loadSchedule();
+  }, 20000);
   // Countdownlarni har soniya yangilash
   statusTimer = setInterval(tickCountdowns, 1000);
 }
@@ -256,6 +260,51 @@ async function cancelQueue() {
   loadStatusAndRender();
 }
 
+// ==================== JADVAL (oldindan band qilish) ====================
+async function loadSchedule() {
+  const res = await api('/breaks/schedule');
+  if (res.error) return;
+  state.schedule = res;
+  if (state.currentPage === 'dashboard') renderSchedule();
+}
+
+function renderSchedule() {
+  const el = document.getElementById('schedule-body');
+  if (!el || !state.schedule) return;
+  const { slots } = state.schedule;
+
+  if (!slots.length) {
+    el.innerHTML = `<p style="color:var(--text2)">${t('schedule_empty')}</p>`;
+    return;
+  }
+
+  el.innerHTML = `<div class="slot-grid">${slots.map(sl => {
+    const disabled = sl.isPast || sl.isFull;
+    const cls = sl.isPast ? 'slot-past' : sl.isFull ? 'slot-full' : 'slot-free';
+    return `
+      <button class="slot-btn ${cls}" ${disabled ? 'disabled' : ''} onclick="bookSlot('${sl.start}')">
+        <span class="slot-time">${fmtTime(sl.start)}–${fmtTime(sl.end)}</span>
+        <span class="slot-count">${sl.booked}/${sl.capacity}</span>
+      </button>`;
+  }).join('')}</div>`;
+}
+
+async function bookSlot(slotStart) {
+  const res = await api('/breaks/book', { method: 'POST', body: JSON.stringify({ slotStart }) });
+  if (res.error) return toast(res.error, true);
+  toast(t('toast_booked'));
+  loadStatusAndRender();
+  loadSchedule();
+}
+
+async function cancelBooking() {
+  const res = await api('/breaks/book', { method: 'DELETE' });
+  if (res.error) return toast(res.error, true);
+  toast(t('toast_booking_cancelled'));
+  loadStatusAndRender();
+  loadSchedule();
+}
+
 // ==================== DASHBOARD (xodim) ====================
 function renderDashboardShell() {
   document.getElementById('page-dashboard').innerHTML = `
@@ -312,6 +361,14 @@ function renderDashboardBody() {
         <p>${t('self_queued_note')}</p>
         <button class="btn btn-secondary btn-full" onclick="cancelQueue()">${t('self_queued_btn')}</button>
       </div>`;
+  } else if (s.self.status === 'booked') {
+    selfCard = `
+      <div class="break-hero queued">
+        <p class="break-hero-label">${t('self_label')}</p>
+        <h2>${t('self_booked_title')} ${fmtTime(s.self.bookedSlot)}–${fmtTime(s.self.bookedSlotEnd)}</h2>
+        <p>${t('self_booked_note')}</p>
+        <button class="btn btn-secondary btn-full" onclick="cancelBooking()">${t('self_booked_cancel')}</button>
+      </div>`;
   } else {
     selfCard = `
       <div class="break-hero done">
@@ -332,6 +389,12 @@ function renderDashboardBody() {
     </div>
 
     <div class="break-section">
+      <h3>${t('section_schedule')}</h3>
+      <p style="color:var(--text2);font-size:0.85rem;margin-bottom:14px">${t('section_schedule_note')}</p>
+      <div id="schedule-body">...</div>
+    </div>
+
+    <div class="break-section">
       <h3>${t('section_active')} (${s.active.length})</h3>
       ${personListHtml(s.active, { empty: t('empty_active'), render: p => `
         <span class="person-meta">${fmtTime(p.startTime)} → ${fmtTime(p.expectedEndTime)}</span>
@@ -345,11 +408,17 @@ function renderDashboardBody() {
     </div>
 
     <div class="break-section">
+      <h3>${t('section_booked')} (${s.booked.length})</h3>
+      ${personListHtml(s.booked, { empty: t('empty_booked'), render: p => `<span class="person-meta">${fmtTime(p.bookedSlot)}–${fmtTime(p.bookedSlotEnd)}</span>` })}
+    </div>
+
+    <div class="break-section">
       <h3>${t('section_notgone')} (${s.notGoneYet.length})</h3>
       ${personListHtml(s.notGoneYet, { empty: t('empty_notgone') })}
     </div>
   `;
   tickCountdowns();
+  renderSchedule();
 }
 
 // ==================== ADMIN ====================
@@ -364,7 +433,7 @@ function renderAdminShell() {
 
       <div class="break-section">
         <h3>${t('section_settings')}</h3>
-        <form id="settings-form" class="settings-form">
+        <form id="settings-form" class="settings-form settings-form-wide">
           <div class="form-group">
             <label class="form-label">${t('label_duration')}</label>
             <input type="number" class="form-input" id="set-duration" min="1" max="480" required>
@@ -372,6 +441,14 @@ function renderAdminShell() {
           <div class="form-group">
             <label class="form-label">${t('label_maxconcurrent')}</label>
             <input type="number" class="form-input" id="set-max" min="1" max="50" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">${t('label_workstart')}</label>
+            <input type="time" class="form-input" id="set-workstart" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">${t('label_workend')}</label>
+            <input type="time" class="form-input" id="set-workend" required>
           </div>
           <div class="error-msg" id="settings-error"></div>
           <button type="submit" class="btn btn-primary">${t('btn_save_settings')}</button>
@@ -458,6 +535,11 @@ function renderAdminBody() {
     </div>
 
     <div class="break-section">
+      <h3>${t('section_booked')}</h3>
+      ${personListHtml(s.booked, { empty: t('empty_booked'), render: p => `<span class="person-meta">${fmtTime(p.bookedSlot)}–${fmtTime(p.bookedSlotEnd)}</span>` })}
+    </div>
+
+    <div class="break-section">
       <h3>${t('section_notgone')}</h3>
       ${personListHtml(s.notGoneYet, { empty: t('empty_notgone') })}
     </div>
@@ -465,6 +547,8 @@ function renderAdminBody() {
 
   document.getElementById('set-duration').value = s.settings.breakDurationMinutes;
   document.getElementById('set-max').value = s.settings.maxConcurrent;
+  document.getElementById('set-workstart').value = s.settings.workStart;
+  document.getElementById('set-workend').value = s.settings.workEnd;
   tickCountdowns();
 }
 
@@ -472,15 +556,18 @@ async function saveSettings(e) {
   e.preventDefault();
   const breakDurationMinutes = document.getElementById('set-duration').value;
   const maxConcurrent = document.getElementById('set-max').value;
+  const workStart = document.getElementById('set-workstart').value;
+  const workEnd = document.getElementById('set-workend').value;
   const errEl = document.getElementById('settings-error');
   errEl.textContent = '';
   const res = await api('/breaks/settings', {
     method: 'PUT',
-    body: JSON.stringify({ breakDurationMinutes, maxConcurrent })
+    body: JSON.stringify({ breakDurationMinutes, maxConcurrent, workStart, workEnd })
   });
   if (res.error) { errEl.textContent = res.error; return; }
   toast(t('toast_settings_saved'));
   loadStatusAndRender();
+  loadSchedule();
 }
 
 async function loadHistory() {
@@ -490,7 +577,7 @@ async function loadHistory() {
   if (res.error) { body.innerHTML = `<p class="error-msg">${res.error}</p>`; return; }
   if (!res.records.length) { body.innerHTML = `<p style="color:var(--text2)">${t('history_empty')}</p>`; return; }
 
-  const statusLabel = { active: t('status_active'), queued: t('status_queued'), completed: t('status_completed'), cancelled: t('status_cancelled') };
+  const statusLabel = { active: t('status_active'), queued: t('status_queued'), booked: t('status_booked'), completed: t('status_completed'), cancelled: t('status_cancelled') };
   body.innerHTML = `
     <div class="history-table">
       <div class="history-row history-head">
@@ -499,9 +586,9 @@ async function loadHistory() {
       ${res.records.map(r => `
         <div class="history-row">
           <span>${escapeHtml(r.fullName)}</span>
-          <span>${fmtTime(r.startTime)}</span>
+          <span>${fmtTime(r.startTime || r.bookedSlot)}</span>
           <span>${fmtTime(r.actualEndTime)}</span>
-          <span>${statusLabel[r.status] || r.status}</span>
+          <span>${statusLabel[r.status] || r.status}${r.autoEnded ? ' 🤖' : ''}</span>
         </div>
       `).join('')}
     </div>

@@ -1381,3 +1381,25 @@ body {
   .history-row { grid-template-columns: 1fr 1fr; row-gap: 4px; }
 }
 
+/* ========== JADVAL (bron qilish slotlari) ========== */
+.slot-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 10px;
+}
+.slot-btn {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 10px; padding: 12px 8px; cursor: pointer;
+  transition: all 0.2s; color: var(--text);
+}
+.slot-time { font-weight: 700; font-size: 0.85rem; }
+.slot-count { font-size: 0.75rem; color: var(--text2); }
+.slot-free:hover { border-color: var(--green); transform: translateY(-2px); }
+.slot-full {
+  opacity: 0.5; cursor: not-allowed; border-color: rgba(239,68,68,0.3);
+}
+.slot-full .slot-count { color: var(--red); }
+.slot-past {
+  opacity: 0.3; cursor: not-allowed;
+}
+
