@@ -36,6 +36,7 @@ const I18N = {
     section_users: '👥 Сотрудники', th_phone: 'Телефон', th_role: 'Роль', th_action: 'Действие',
     role_admin: '⭐ Админ', role_employee: 'Сотрудник', banned_label: '🚫 Заблокирован',
     btn_ban: 'Заблокировать', btn_unban: 'Разблокировать', btn_make_admin: 'Сделать админом', btn_remove_admin: 'Снять админа',
+    btn_reset_password: 'Сменить пароль', reset_password_prompt: 'Новый пароль для {name}:', toast_password_reset: '✅ Пароль изменён',
 
     section_add_employee: '➕ Добавить сотрудника', btn_add_employee: 'Добавить',
     section_danger: '⚠️ Опасная зона',
@@ -87,6 +88,7 @@ const I18N = {
     section_users: '👥 Xodimlar', th_phone: 'Telefon', th_role: 'Rol', th_action: 'Amal',
     role_admin: '⭐ Admin', role_employee: 'Xodim', banned_label: '🚫 Bloklangan',
     btn_ban: 'Bloklash', btn_unban: 'Blokdan chiqarish', btn_make_admin: 'Admin qilish', btn_remove_admin: 'Admin olish',
+    btn_reset_password: "Parolni o'zgartirish", reset_password_prompt: "{name} uchun yangi parol:", toast_password_reset: "✅ Parol o'zgartirildi",
 
     section_add_employee: "➕ Xodim qo'shish", btn_add_employee: "Qo'shish",
     section_danger: "⚠️ Xavfli hudud",
@@ -138,6 +140,7 @@ const I18N = {
     section_users: '👥 Кормандон', th_phone: 'Телефон', th_role: 'Нақш', th_action: 'Амал',
     role_admin: '⭐ Админ', role_employee: 'Корманд', banned_label: '🚫 Баста',
     btn_ban: 'Бастан', btn_unban: 'Кушодан', btn_make_admin: 'Админ кардан', btn_remove_admin: 'Админро гирифтан',
+    btn_reset_password: 'Тағйир додани парол', reset_password_prompt: 'Пароли нав барои {name}:', toast_password_reset: '✅ Парол тағйир ёфт',
 
     section_add_employee: '➕ Илова кардани корманд', btn_add_employee: 'Илова кардан',
     section_danger: '⚠️ Минтақаи хатарнок',

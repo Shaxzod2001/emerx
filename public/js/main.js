@@ -530,6 +530,7 @@ async function loadUsers() {
           <span style="font-size:0.8rem;color:var(--text2)">${escapeHtml(u.phone)}</span>
           <span>${u.isAdmin ? t('role_admin') : t('role_employee')}${u.isBanned ? ' · ' + t('banned_label') : ''}</span>
           <span style="display:flex;gap:6px;flex-wrap:wrap">
+            <button class="btn btn-secondary btn-sm" onclick="resetUserPassword('${u.id}', '${escapeHtml(u.firstName)} ${escapeHtml(u.lastName)}')">${t('btn_reset_password')}</button>
             <button class="btn btn-secondary btn-sm" onclick="toggleBan('${u.id}', ${!u.isBanned})">${u.isBanned ? t('btn_unban') : t('btn_ban')}</button>
             <button class="btn btn-secondary btn-sm" onclick="toggleAdmin('${u.id}', ${!u.isAdmin})">${u.isAdmin ? t('btn_remove_admin') : t('btn_make_admin')}</button>
           </span>
@@ -550,6 +551,16 @@ async function toggleAdmin(id, isAdmin) {
   if (res.error) return toast(res.error, true);
   toast(t('toast_updated'));
   loadUsers();
+}
+
+async function resetUserPassword(id, name) {
+  const newPassword = prompt(t('reset_password_prompt').replace('{name}', name));
+  if (newPassword === null) return;
+  if (newPassword.length < 6) return toast(t('password_short'), true);
+
+  const res = await api(`/admin/users/${id}/password`, { method: 'PUT', body: JSON.stringify({ newPassword }) });
+  if (res.error) return toast(res.error, true);
+  toast(t('toast_password_reset'));
 }
 
 async function addEmployee(e) {
