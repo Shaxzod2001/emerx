@@ -27,10 +27,11 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-app.use('/api/auth',    require('./routes/auth'));
-app.use('/api/breaks',  require('./routes/breaks'));
-app.use('/api/profile', require('./routes/profile'));
-app.use('/api/admin',   require('./routes/admin'));
+app.use('/api/auth',          require('./routes/auth'));
+app.use('/api/breaks',        require('./routes/breaks'));
+app.use('/api/profile',       require('./routes/profile'));
+app.use('/api/admin',         require('./routes/admin'));
+app.use('/api/announcements', require('./routes/announcements'));
 
 // ==================== SOCKET.IO — ABET HOLATI JONLI YANGILANISHI ====================
 const io = new Server(server, {
@@ -42,6 +43,11 @@ const io = new Server(server, {
 // breaks.js dagi o'zgarishlar (start/end/settings) sodir bo'lganda hamma clientga xabar beramiz
 bus.on('breaks:changed', () => {
   io.emit('breaks:changed');
+});
+
+// Admin yangi e'lon joylaganda/o'chirganda hamma clientga xabar beramiz
+bus.on('announcements:changed', () => {
+  io.emit('announcements:changed');
 });
 
 io.on('connection', () => {});

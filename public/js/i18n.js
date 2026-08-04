@@ -3,7 +3,12 @@ const I18N = {
   ru: {
     logo_sub: 'Система контроля обеденных перерывов',
     nav_login: 'Войти', nav_register: 'Регистрация', nav_dashboard: 'Обед',
-    nav_admin: 'Админ', nav_profile: 'Профиль', nav_logout: 'Выйти',
+    nav_admin: 'Админ', nav_profile: 'Профиль', nav_logout: 'Выйти', nav_bell: 'Уведомления',
+
+    section_announcements: '📢 Отправить уведомление', field_title: 'Заголовок', field_body: 'Текст',
+    btn_send: 'Отправить', btn_delete: 'Удалить',
+    announcements_empty: 'Пока нет уведомлений',
+    toast_announcement_sent: '✅ Уведомление отправлено', toast_announcement_deleted: '✅ Уведомление удалено',
 
     auth_tab_login: 'Вход', auth_tab_register: 'Регистрация',
     register_note: 'Самостоятельная регистрация доступна только для номера первого администратора. Остальных сотрудников добавляет администратор из панели управления.',
@@ -63,7 +68,12 @@ const I18N = {
   uz: {
     logo_sub: 'Xodimlarning abet vaqtini nazorat qilish tizimi',
     nav_login: 'Kirish', nav_register: "Ro'yxatdan o'tish", nav_dashboard: 'Abet',
-    nav_admin: 'Admin', nav_profile: 'Profil', nav_logout: 'Chiqish',
+    nav_admin: 'Admin', nav_profile: 'Profil', nav_logout: 'Chiqish', nav_bell: 'Bildirishnomalar',
+
+    section_announcements: "📢 Bildirishnoma yuborish", field_title: 'Sarlavha', field_body: 'Matn',
+    btn_send: 'Yuborish', btn_delete: "O'chirish",
+    announcements_empty: "Hozircha bildirishnoma yo'q",
+    toast_announcement_sent: '✅ Bildirishnoma yuborildi', toast_announcement_deleted: "✅ Bildirishnoma o'chirildi",
 
     auth_tab_login: 'Kirish', auth_tab_register: "Ro'yxatdan o'tish",
     register_note: "O'z-o'zidan ro'yxatdan o'tish faqat birinchi admin raqami uchun ochiq. Qolgan xodimlarni admin boshqaruv panelidan qo'shadi.",
@@ -123,7 +133,12 @@ const I18N = {
   tj: {
     logo_sub: 'Низоми назорати вақти танаффуси хӯроки корманд',
     nav_login: 'Даромадан', nav_register: 'Бақайдгирӣ', nav_dashboard: 'Танаффус',
-    nav_admin: 'Админ', nav_profile: 'Профил', nav_logout: 'Баромадан',
+    nav_admin: 'Админ', nav_profile: 'Профил', nav_logout: 'Баромадан', nav_bell: 'Огоҳиномаҳо',
+
+    section_announcements: '📢 Фиристодани огоҳинома', field_title: 'Сарлавҳа', field_body: 'Матн',
+    btn_send: 'Фиристодан', btn_delete: 'Нест кардан',
+    announcements_empty: 'Ҳанӯз огоҳинома нест',
+    toast_announcement_sent: '✅ Огоҳинома фиристода шуд', toast_announcement_deleted: '✅ Огоҳинома нест карда шуд',
 
     auth_tab_login: 'Вуруд', auth_tab_register: 'Бақайдгирӣ',
     register_note: 'Бақайдгирии мустақилона танҳо барои рақами администратори якум кушода аст. Дигар кормандонро администратор аз панели идора илова мекунад.',
