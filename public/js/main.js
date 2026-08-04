@@ -208,7 +208,7 @@ function startPolling() {
 // ==================== VAQT YORDAMCHILARI ====================
 function fmtTime(iso) {
   if (!iso) return '—';
-  return new Date(iso).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tashkent' });
+  return new Date(iso).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Moscow' });
 }
 
 function fmtDuration(ms) {
@@ -505,7 +505,7 @@ function renderAdminShell() {
   document.getElementById('employee-form').addEventListener('submit', addEmployee);
   document.getElementById('settings-form').addEventListener('submit', saveSettings);
   const dateInput = document.getElementById('history-date');
-  dateInput.value = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tashkent' });
+  dateInput.value = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Moscow' });
 }
 
 function renderAdminBody() {
