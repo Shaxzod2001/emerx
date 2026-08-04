@@ -23,6 +23,7 @@ let statusTimer = null;   // countdownlarni yangilab turuvchi interval
 let pollTimer = null;     // fallback polling
 let announcementsTimer = null; // bildirishnomalarni fon rejimida yangilab turish
 let socket = null;
+let chatMessages = [];
 
 // ==================== API HELPER ====================
 async function api(path, opts = {}) {
@@ -79,13 +80,16 @@ function applyStaticText() {
   setText('nav-login', t('nav_login'));
   setText('nav-register', t('nav_register'));
   setText('nav-dashboard', '🍽️ ' + t('nav_dashboard'));
+  setText('nav-chat', '💬 ' + t('nav_chat'));
+  setText('nav-announcements', '📢 ' + t('nav_announcements'));
   setText('nav-admin', '⚙️ ' + t('nav_admin'));
   setText('nav-logout', t('nav_logout'));
+  const bellTitle = t('nav_bell');
   const bell = document.getElementById('nav-bell');
-  if (bell) bell.title = t('nav_bell');
-  const annHeader = document.querySelector('.announcements-header');
-  if (annHeader) annHeader.textContent = '🔔 ' + t('nav_bell');
-  if (announcementsPanelOpen) renderAnnouncementsList();
+  if (bell) bell.title = bellTitle;
+  const bellMobile = document.getElementById('nav-bell-mobile');
+  if (bellMobile) bellMobile.title = bellTitle;
+  if (state.currentPage === 'announcements') renderAnnouncementsPage();
 }
 
 // ==================== AUTH ====================
@@ -147,7 +151,7 @@ function logout() {
 // ==================== SOCKET.IO (jonli yangilanish) ====================
 function connectSocket() {
   if (socket) return;
-  socket = io();
+  socket = io({ auth: { token: state.token } });
   socket.on('breaks:changed', () => {
     if (state.currentPage === 'dashboard' || state.currentPage === 'admin') {
       loadStatusAndRender();
@@ -155,14 +159,32 @@ function connectSocket() {
     if (state.currentPage === 'dashboard') loadSchedule();
   });
   socket.on('announcements:changed', loadAnnouncements);
+
+  socket.on('chat:history', (history) => {
+    chatMessages = history;
+    if (state.currentPage === 'chat') renderChatMessages();
+  });
+  socket.on('chat:message', (msg) => {
+    chatMessages.push(msg);
+    if (state.currentPage === 'chat') { renderChatMessages(); scrollChatToBottom(); }
+  });
+  socket.on('chat:deleted', (msgId) => {
+    const m = chatMessages.find(x => x._id === msgId);
+    if (m) m.deleted = true;
+    if (state.currentPage === 'chat') renderChatMessages();
+  });
+  socket.on('chat:error', (code) => {
+    const map = { rate_limit: t('chat_rate_limit'), auth_required: t('chat_auth_required'), no_access: t('chat_no_access') };
+    toast(map[code] || code, true);
+  });
 }
 function disconnectSocket() {
   if (socket) { socket.disconnect(); socket = null; }
+  chatMessages = [];
 }
 
-// ==================== BILDIRISHNOMALAR ====================
+// ==================== BILDIRISHNOMALAR (Yangiliklar sahifasi) ====================
 let announcementsState = { items: [], hasUnread: false };
-let announcementsPanelOpen = false;
 
 function startAnnouncements() {
   loadAnnouncements();
@@ -172,56 +194,54 @@ function startAnnouncements() {
 function stopAnnouncements() {
   clearInterval(announcementsTimer);
   announcementsState = { items: [], hasUnread: false };
-  announcementsPanelOpen = false;
-  const panel = document.getElementById('announcements-panel');
-  if (panel) panel.style.display = 'none';
+  setBellDot(false);
+}
+
+function setBellDot(show) {
+  const dot = document.getElementById('bell-dot');
+  const dotMobile = document.getElementById('bell-dot-mobile');
+  if (dot) dot.style.display = show ? 'block' : 'none';
+  if (dotMobile) dotMobile.style.display = show ? 'block' : 'none';
 }
 
 async function loadAnnouncements() {
   const res = await api('/announcements');
   if (res.error) return;
   announcementsState = res;
-  const dot = document.getElementById('bell-dot');
-  if (dot) dot.style.display = res.hasUnread ? 'block' : 'none';
-  if (announcementsPanelOpen) renderAnnouncementsList();
+  setBellDot(res.hasUnread);
+  if (state.currentPage === 'announcements') renderAnnouncementsPage();
 }
 
-function renderAnnouncementsList() {
-  const el = document.getElementById('announcements-list');
-  if (!el) return;
+function renderAnnouncementsPage() {
+  const page = document.getElementById('page-announcements');
+  if (!page) return;
   const items = announcementsState.items || [];
 
-  if (!items.length) {
-    el.innerHTML = `<div class="announcements-empty">${t('announcements_empty')}</div>`;
-    return;
-  }
+  const list = !items.length
+    ? `<div class="announcements-empty">${t('announcements_empty')}</div>`
+    : `<div class="announcements-list">${items.map(a => `
+        <div class="announcement-item">
+          <h4>${escapeHtml(a.title)}</h4>
+          <p>${escapeHtml(a.body)}</p>
+          <div class="announcement-meta">
+            <span>${escapeHtml(a.createdBy)} · ${fmtDateTime(a.createdAt)}</span>
+            ${state.user && state.user.isAdmin ? `<button class="announcement-del" onclick="deleteAnnouncement('${a.id}')">✖ ${t('btn_delete')}</button>` : ''}
+          </div>
+        </div>
+      `).join('')}</div>`;
 
-  el.innerHTML = items.map(a => `
-    <div class="announcement-item">
-      <h4>${escapeHtml(a.title)}</h4>
-      <p>${escapeHtml(a.body)}</p>
-      <div class="announcement-meta">
-        <span>${escapeHtml(a.createdBy)} · ${fmtDateTime(a.createdAt)}</span>
-        ${state.user && state.user.isAdmin ? `<button class="announcement-del" onclick="deleteAnnouncement('${a.id}')">✖ ${t('btn_delete')}</button>` : ''}
+  page.innerHTML = `
+    <div class="dashboard-page">
+      <div class="dashboard-header">
+        <h1>📢 ${t('nav_announcements')}</h1>
       </div>
+      ${list}
     </div>
-  `).join('');
-}
-
-function toggleAnnouncementsPanel() {
-  const panel = document.getElementById('announcements-panel');
-  if (!panel) return;
-  announcementsPanelOpen = !announcementsPanelOpen;
-  panel.style.display = announcementsPanelOpen ? 'block' : 'none';
-  if (announcementsPanelOpen) {
-    renderAnnouncementsList();
-    if (announcementsState.hasUnread) markAnnouncementsSeen();
-  }
+  `;
 }
 
 async function markAnnouncementsSeen() {
-  const dot = document.getElementById('bell-dot');
-  if (dot) dot.style.display = 'none';
+  setBellDot(false);
   announcementsState.hasUnread = false;
   await api('/announcements/seen', { method: 'PUT' });
 }
@@ -233,10 +253,83 @@ async function deleteAnnouncement(id) {
   loadAnnouncements();
 }
 
+// ==================== CHAT ====================
+function renderChatPage() {
+  const page = document.getElementById('page-chat');
+  if (!page) return;
+  page.innerHTML = `
+    <div class="chat-page">
+      <div class="chat-header"><h1>${t('chat_title')}</h1></div>
+      <div class="chat-window">
+        <div class="chat-messages" id="chat-messages"></div>
+        <div class="chat-input-row">
+          <input class="chat-input" id="chat-input" maxlength="300" placeholder="${t('chat_placeholder')}">
+          <button class="btn btn-primary chat-send-btn" id="chat-send-btn">${t('chat_send')}</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.getElementById('chat-send-btn').onclick = sendChatMessage;
+  document.getElementById('chat-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') sendChatMessage();
+  });
+  renderChatMessages();
+  scrollChatToBottom();
+}
+
+function renderChatMessages() {
+  const el = document.getElementById('chat-messages');
+  if (!el) return;
+
+  if (!chatMessages.length) {
+    el.innerHTML = `<div class="chat-empty">${t('chat_empty')}</div>`;
+    return;
+  }
+
+  el.innerHTML = chatMessages.map(m => {
+    const mine = state.user && m.userId === state.user.id;
+    const initial = (m.fullName || '?').trim().charAt(0).toUpperCase();
+    const canDelete = state.user && state.user.isAdmin && !m.deleted;
+    return `
+      <div class="chat-msg ${mine ? 'chat-msg-me' : ''} ${m.deleted ? 'deleted' : ''}">
+        <div class="chat-avatar"><div class="chat-avatar-letter">${escapeHtml(initial)}</div></div>
+        <div class="chat-msg-body">
+          <div class="chat-msg-header">
+            <span class="chat-username ${mine ? 'me' : ''}">${escapeHtml(m.fullName)}</span>
+            ${m.isAdmin ? `<span class="chat-admin-badge">ADMIN</span>` : ''}
+            <span class="chat-time">${fmtTime(m.createdAt)}</span>
+            ${canDelete ? `<button class="chat-del-btn" onclick="deleteChatMessage('${m._id}')" title="${t('btn_delete')}">✖</button>` : ''}
+          </div>
+          <div class="chat-msg-text">${m.deleted ? t('chat_deleted') : escapeHtml(m.text)}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function scrollChatToBottom() {
+  const el = document.getElementById('chat-messages');
+  if (el) el.scrollTop = el.scrollHeight;
+}
+
+function sendChatMessage() {
+  const input = document.getElementById('chat-input');
+  if (!input) return;
+  const text = input.value.trim();
+  if (!text || !socket) return;
+  socket.emit('chat:send', text);
+  input.value = '';
+}
+
+function deleteChatMessage(id) {
+  if (socket) socket.emit('chat:delete', id);
+}
+
 // ==================== NAV ====================
 function updateNavbar() {
   const navAuth = document.getElementById('nav-auth');
   const navUser = document.getElementById('nav-user');
+  const bellMobile = document.getElementById('nav-bell-mobile');
 
   if (state.user) {
     navAuth.style.display = 'none';
@@ -244,9 +337,11 @@ function updateNavbar() {
     document.getElementById('nav-username').textContent = fullName(state.user);
     const navAdmin = document.getElementById('nav-admin');
     navAdmin.style.display = state.user.isAdmin ? 'inline-flex' : 'none';
+    if (bellMobile) bellMobile.classList.add('shown');
   } else {
     navAuth.style.display = 'flex';
     navUser.style.display = 'none';
+    if (bellMobile) bellMobile.classList.remove('shown');
   }
 }
 
@@ -258,7 +353,7 @@ function closeMobileMenu() {
 
 // ==================== ROUTING ====================
 function showPage(name) {
-  const authRequired = ['dashboard', 'admin', 'profile'];
+  const authRequired = ['dashboard', 'admin', 'profile', 'announcements', 'chat'];
   if (authRequired.includes(name) && !state.user) name = 'auth';
   if (name === 'admin' && state.user && !state.user.isAdmin) name = 'dashboard';
 
@@ -275,6 +370,8 @@ function showPage(name) {
   if (name === 'dashboard') { renderDashboardShell(); loadStatusAndRender(); loadSchedule(); startPolling(); }
   if (name === 'admin') { renderAdminShell(); loadStatusAndRender(); loadAdminExtras(); startPolling(); }
   if (name === 'profile') renderProfile();
+  if (name === 'announcements') { renderAnnouncementsPage(); if (announcementsState.hasUnread) markAnnouncementsSeen(); }
+  if (name === 'chat') renderChatPage();
 
   window.scrollTo(0, 0);
 }
@@ -996,20 +1093,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('nav-login').onclick = () => { document.getElementById('page-auth').dataset.tab = 'login'; showPage('auth'); };
   document.getElementById('nav-register').onclick = () => { document.getElementById('page-auth').dataset.tab = 'register'; showPage('auth'); };
   document.getElementById('nav-dashboard').onclick = () => showPage('dashboard');
+  document.getElementById('nav-chat').onclick = () => showPage('chat');
+  document.getElementById('nav-announcements').onclick = () => showPage('announcements');
   document.getElementById('nav-admin').onclick = () => showPage('admin');
   document.getElementById('nav-profile').onclick = () => showPage('profile');
   document.getElementById('nav-logout').onclick = logout;
-  document.getElementById('nav-bell').onclick = (e) => { e.stopPropagation(); toggleAnnouncementsPanel(); };
-
-  document.addEventListener('click', (e) => {
-    if (!announcementsPanelOpen) return;
-    const panel = document.getElementById('announcements-panel');
-    const bell = document.getElementById('nav-bell');
-    if (panel && !panel.contains(e.target) && e.target !== bell && !bell.contains(e.target)) {
-      announcementsPanelOpen = false;
-      panel.style.display = 'none';
-    }
-  });
+  document.getElementById('nav-bell').onclick = () => showPage('announcements');
+  document.getElementById('nav-bell-mobile').onclick = () => showPage('announcements');
 
   document.getElementById('hamburger').onclick = () => {
     document.getElementById('nav-links').classList.toggle('open');

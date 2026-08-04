@@ -10,7 +10,11 @@ const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const path = require('path');
+const jwt = require('jsonwebtoken');
 const bus = require('./lib/bus');
+const { messages, users } = require('./database');
+
+const JWT_SECRET = process.env.JWT_SECRET || 'emerx_secret_2024';
 
 const app = express();
 const server = http.createServer(app);
@@ -50,7 +54,88 @@ bus.on('announcements:changed', () => {
   io.emit('announcements:changed');
 });
 
-io.on('connection', () => {});
+// ==================== CHAT — HAMMA FOYDALANUVCHILAR UCHUN UMUMIY ====================
+const lastMessageTime = new Map(); // spam-dan himoya: userId -> oxirgi xabar vaqti
+const RATE_LIMIT_MS = 3000;
+const MAX_MSG_LENGTH = 300;
+const HISTORY_COUNT = 100;
+
+io.on('connection', async (socket) => {
+  let chatUser = null;
+  const token = socket.handshake.auth?.token;
+  if (token) {
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET);
+      const dbUser = await users.findOneAsync({ _id: decoded.id });
+      if (dbUser && !dbUser.isBanned && !dbUser._deleted) {
+        chatUser = {
+          id: decoded.id,
+          fullName: `${dbUser.firstName} ${dbUser.lastName}`.trim(),
+          isAdmin: !!dbUser.isAdmin,
+        };
+      }
+    } catch {}
+  }
+
+  try {
+    const all = await messages.findAsync({});
+    const history = all
+      .filter(m => !m.deleted)
+      .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+      .slice(-HISTORY_COUNT);
+    socket.emit('chat:history', history);
+  } catch (e) {
+    console.error('chat history xato:', e.message);
+    socket.emit('chat:history', []);
+  }
+
+  socket.on('chat:send', async (text) => {
+    if (!chatUser) {
+      return socket.emit('chat:error', 'auth_required');
+    }
+
+    const now = Date.now();
+    const last = lastMessageTime.get(chatUser.id) || 0;
+    if (now - last < RATE_LIMIT_MS) {
+      return socket.emit('chat:error', 'rate_limit');
+    }
+
+    if (!text || typeof text !== 'string') return;
+    const trimmed = text.trim();
+    if (!trimmed || trimmed.length > MAX_MSG_LENGTH) {
+      return socket.emit('chat:error', 'invalid_length');
+    }
+
+    lastMessageTime.set(chatUser.id, now);
+
+    try {
+      const msg = await messages.insertAsync({
+        userId: chatUser.id,
+        fullName: chatUser.fullName,
+        isAdmin: chatUser.isAdmin,
+        text: trimmed,
+        createdAt: new Date().toISOString(),
+      });
+      io.emit('chat:message', msg);
+    } catch (e) {
+      console.error('chat insert xato:', e.message);
+      socket.emit('chat:error', 'server_error');
+    }
+  });
+
+  socket.on('chat:delete', async (msgId) => {
+    if (!chatUser) return;
+    try {
+      const dbUser = await users.findOneAsync({ _id: chatUser.id });
+      if (!dbUser || !dbUser.isAdmin) return socket.emit('chat:error', 'no_access');
+
+      await messages.updateAsync({ _id: msgId }, { $set: { deleted: true } });
+      io.emit('chat:deleted', msgId);
+    } catch (e) {
+      console.error('chat delete xato:', e.message);
+    }
+  });
+});
 
 // Diagnostika — Node.js versiyasi va Atlas xato
 app.get('/api/diag', async (req, res) => {

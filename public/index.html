@@ -43,22 +43,23 @@
       <!-- User -->
       <div id="nav-user" style="display:none;gap:8px;align-items:center">
         <button class="nav-btn nav-btn-ghost" id="nav-dashboard">🍽️ Обед</button>
+        <button class="nav-btn nav-btn-ghost" id="nav-chat">💬 Чат</button>
+        <button class="nav-btn nav-btn-ghost" id="nav-announcements">📢 Новости</button>
         <button class="nav-btn nav-btn-ghost" id="nav-admin" style="display:none;color:#f59e0b">⚙️ Админ</button>
-        <div class="bell-wrap">
-          <button class="nav-bell" id="nav-bell" title="Уведомления">
-            🔔<span class="bell-dot" id="bell-dot" style="display:none"></span>
-          </button>
-          <div class="announcements-panel" id="announcements-panel" style="display:none">
-            <div class="announcements-header">🔔 Уведомления</div>
-            <div class="announcements-list" id="announcements-list"></div>
-          </div>
-        </div>
+        <button class="nav-bell" id="nav-bell" title="Уведомления">
+          🔔<span class="bell-dot" id="bell-dot" style="display:none"></span>
+        </button>
         <button class="nav-profile-btn" id="nav-profile" title="Профиль">
           <span id="nav-username" class="nav-username"></span>
         </button>
         <button class="nav-btn nav-btn-ghost" id="nav-logout" style="color:var(--red)">Выйти</button>
       </div>
     </div>
+
+    <!-- Mobil: qo'ng'iroqcha doim ko'rinib turadi (menyu ochilmasa ham) -->
+    <button class="nav-bell nav-bell-mobile" id="nav-bell-mobile" title="Уведомления">
+      🔔<span class="bell-dot" id="bell-dot-mobile" style="display:none"></span>
+    </button>
 
     <!-- Hamburger -->
     <button class="hamburger" id="hamburger" aria-label="Menu">
@@ -74,6 +75,8 @@
   <div class="page" id="page-auth" data-tab="login"></div>
   <div class="page" id="page-profile"></div>
   <div class="page" id="page-admin"></div>
+  <div class="page" id="page-announcements"></div>
+  <div class="page" id="page-chat"></div>
 
   <!-- TOAST -->
   <div class="toast" id="toast"></div>
