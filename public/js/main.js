@@ -21,6 +21,7 @@ window.currentLang = state.lang;
 
 let statusTimer = null;   // countdownlarni yangilab turuvchi interval
 let pollTimer = null;     // fallback polling
+let announcementsTimer = null; // bildirishnomalarni fon rejimida yangilab turish
 let socket = null;
 
 // ==================== API HELPER ====================
@@ -80,6 +81,11 @@ function applyStaticText() {
   setText('nav-dashboard', '🍽️ ' + t('nav_dashboard'));
   setText('nav-admin', '⚙️ ' + t('nav_admin'));
   setText('nav-logout', t('nav_logout'));
+  const bell = document.getElementById('nav-bell');
+  if (bell) bell.title = t('nav_bell');
+  const annHeader = document.querySelector('.announcements-header');
+  if (annHeader) annHeader.textContent = '🔔 ' + t('nav_bell');
+  if (announcementsPanelOpen) renderAnnouncementsList();
 }
 
 // ==================== AUTH ====================
@@ -91,6 +97,7 @@ async function initAuth() {
   if (user.id) {
     state.user = user;
     connectSocket();
+    startAnnouncements();
   } else {
     state.token = null;
     localStorage.removeItem('emerx_token');
@@ -104,6 +111,7 @@ async function login(phone, password) {
     state.user = res.user;
     localStorage.setItem('emerx_token', res.token);
     connectSocket();
+    startAnnouncements();
     return { ok: true };
   }
   return { ok: false, error: res.error || 'Error' };
@@ -119,6 +127,7 @@ async function register(firstName, lastName, phone, password, captchaToken, capt
     state.user = res.user;
     localStorage.setItem('emerx_token', res.token);
     connectSocket();
+    startAnnouncements();
     return { ok: true };
   }
   return { ok: false, error: res.error || 'Error' };
@@ -130,6 +139,7 @@ function logout() {
   state.status = null;
   localStorage.removeItem('emerx_token');
   disconnectSocket();
+  stopAnnouncements();
   updateNavbar();
   showPage('auth');
 }
@@ -144,9 +154,83 @@ function connectSocket() {
     }
     if (state.currentPage === 'dashboard') loadSchedule();
   });
+  socket.on('announcements:changed', loadAnnouncements);
 }
 function disconnectSocket() {
   if (socket) { socket.disconnect(); socket = null; }
+}
+
+// ==================== BILDIRISHNOMALAR ====================
+let announcementsState = { items: [], hasUnread: false };
+let announcementsPanelOpen = false;
+
+function startAnnouncements() {
+  loadAnnouncements();
+  clearInterval(announcementsTimer);
+  announcementsTimer = setInterval(loadAnnouncements, 30000);
+}
+function stopAnnouncements() {
+  clearInterval(announcementsTimer);
+  announcementsState = { items: [], hasUnread: false };
+  announcementsPanelOpen = false;
+  const panel = document.getElementById('announcements-panel');
+  if (panel) panel.style.display = 'none';
+}
+
+async function loadAnnouncements() {
+  const res = await api('/announcements');
+  if (res.error) return;
+  announcementsState = res;
+  const dot = document.getElementById('bell-dot');
+  if (dot) dot.style.display = res.hasUnread ? 'block' : 'none';
+  if (announcementsPanelOpen) renderAnnouncementsList();
+}
+
+function renderAnnouncementsList() {
+  const el = document.getElementById('announcements-list');
+  if (!el) return;
+  const items = announcementsState.items || [];
+
+  if (!items.length) {
+    el.innerHTML = `<div class="announcements-empty">${t('announcements_empty')}</div>`;
+    return;
+  }
+
+  el.innerHTML = items.map(a => `
+    <div class="announcement-item">
+      <h4>${escapeHtml(a.title)}</h4>
+      <p>${escapeHtml(a.body)}</p>
+      <div class="announcement-meta">
+        <span>${escapeHtml(a.createdBy)} · ${fmtDateTime(a.createdAt)}</span>
+        ${state.user && state.user.isAdmin ? `<button class="announcement-del" onclick="deleteAnnouncement('${a.id}')">✖ ${t('btn_delete')}</button>` : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+function toggleAnnouncementsPanel() {
+  const panel = document.getElementById('announcements-panel');
+  if (!panel) return;
+  announcementsPanelOpen = !announcementsPanelOpen;
+  panel.style.display = announcementsPanelOpen ? 'block' : 'none';
+  if (announcementsPanelOpen) {
+    renderAnnouncementsList();
+    if (announcementsState.hasUnread) markAnnouncementsSeen();
+  }
+}
+
+async function markAnnouncementsSeen() {
+  const dot = document.getElementById('bell-dot');
+  if (dot) dot.style.display = 'none';
+  announcementsState.hasUnread = false;
+  await api('/announcements/seen', { method: 'PUT' });
+}
+
+async function deleteAnnouncement(id) {
+  const res = await api(`/announcements/${id}`, { method: 'DELETE' });
+  if (res.error) return toast(res.error, true);
+  toast(t('toast_announcement_deleted'));
+  loadAnnouncements();
 }
 
 // ==================== NAV ====================
@@ -209,6 +293,11 @@ function startPolling() {
 function fmtTime(iso) {
   if (!iso) return '—';
   return new Date(iso).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Moscow' });
+}
+
+function fmtDateTime(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Moscow' });
 }
 
 function fmtDuration(ms) {
@@ -465,6 +554,22 @@ function renderAdminShell() {
       </div>
 
       <div class="break-section">
+        <h3>${t('section_announcements')}</h3>
+        <form id="announcement-form" class="settings-form" style="grid-template-columns:1fr;align-items:stretch">
+          <div class="form-group">
+            <label class="form-label">${t('field_title')}</label>
+            <input class="form-input" id="ann-title" required maxlength="120">
+          </div>
+          <div class="form-group">
+            <label class="form-label">${t('field_body')}</label>
+            <textarea class="form-input" id="ann-body" required maxlength="2000" rows="3" style="resize:vertical"></textarea>
+          </div>
+          <div class="error-msg" id="announcement-error"></div>
+          <button type="submit" class="btn btn-primary">${t('btn_send')}</button>
+        </form>
+      </div>
+
+      <div class="break-section">
         <h3>${t('section_add_employee')}</h3>
         <form id="employee-form" class="settings-form settings-form-wide">
           <div class="form-group">
@@ -504,6 +609,7 @@ function renderAdminShell() {
   `;
   document.getElementById('employee-form').addEventListener('submit', addEmployee);
   document.getElementById('settings-form').addEventListener('submit', saveSettings);
+  document.getElementById('announcement-form').addEventListener('submit', sendAnnouncement);
   const dateInput = document.getElementById('history-date');
   dateInput.value = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Moscow' });
 }
@@ -666,6 +772,20 @@ async function addEmployee(e) {
   document.getElementById('employee-form').reset();
   loadUsers();
   loadStatusAndRender();
+}
+
+async function sendAnnouncement(e) {
+  e.preventDefault();
+  const title = document.getElementById('ann-title').value.trim();
+  const body = document.getElementById('ann-body').value.trim();
+  const errEl = document.getElementById('announcement-error');
+  errEl.textContent = '';
+
+  const res = await api('/announcements', { method: 'POST', body: JSON.stringify({ title, body }) });
+  if (res.error) { errEl.textContent = res.error; return; }
+
+  toast(t('toast_announcement_sent'));
+  document.getElementById('announcement-form').reset();
 }
 
 async function wipeAllEmployees() {
@@ -879,6 +999,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('nav-admin').onclick = () => showPage('admin');
   document.getElementById('nav-profile').onclick = () => showPage('profile');
   document.getElementById('nav-logout').onclick = logout;
+  document.getElementById('nav-bell').onclick = (e) => { e.stopPropagation(); toggleAnnouncementsPanel(); };
+
+  document.addEventListener('click', (e) => {
+    if (!announcementsPanelOpen) return;
+    const panel = document.getElementById('announcements-panel');
+    const bell = document.getElementById('nav-bell');
+    if (panel && !panel.contains(e.target) && e.target !== bell && !bell.contains(e.target)) {
+      announcementsPanelOpen = false;
+      panel.style.display = 'none';
+    }
+  });
 
   document.getElementById('hamburger').onclick = () => {
     document.getElementById('nav-links').classList.toggle('open');

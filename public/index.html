@@ -44,6 +44,15 @@
       <div id="nav-user" style="display:none;gap:8px;align-items:center">
         <button class="nav-btn nav-btn-ghost" id="nav-dashboard">🍽️ Обед</button>
         <button class="nav-btn nav-btn-ghost" id="nav-admin" style="display:none;color:#f59e0b">⚙️ Админ</button>
+        <div class="bell-wrap">
+          <button class="nav-bell" id="nav-bell" title="Уведомления">
+            🔔<span class="bell-dot" id="bell-dot" style="display:none"></span>
+          </button>
+          <div class="announcements-panel" id="announcements-panel" style="display:none">
+            <div class="announcements-header">🔔 Уведомления</div>
+            <div class="announcements-list" id="announcements-list"></div>
+          </div>
+        </div>
         <button class="nav-profile-btn" id="nav-profile" title="Профиль">
           <span id="nav-username" class="nav-username"></span>
         </button>
