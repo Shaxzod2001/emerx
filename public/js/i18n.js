@@ -66,6 +66,9 @@ const I18N = {
     wipe_note: 'Удалить всех сотрудников (кроме вас) и всю историю обедов — для чистого старта.',
     btn_wipe_all: 'Очистить всех сотрудников',
     wipe_confirm: 'Удалить ВСЕХ сотрудников и всю историю обедов? Это действие необратимо.',
+    admin_more_label: '🗂 Разделы',
+    delete_user_confirm: 'Удалить сотрудника {name} из системы? Это действие необратимо.',
+    toast_user_deleted: '✅ Сотрудник удалён',
 
     profile_title: '👤 Профиль',
     avatar_change: 'Изменить фото', avatar_hint: 'Нажмите на значок камеры, чтобы изменить фото профиля',
@@ -149,6 +152,9 @@ const I18N = {
     wipe_note: "Barcha xodimlarni (sizdan tashqari) va abet tarixini butunlay o'chirish — nol nuqtadan boshlash uchun.",
     btn_wipe_all: 'Barcha xodimlarni tozalash',
     wipe_confirm: "BARCHA xodimlar va abet tarixi o'chiriladi. Bu amalni ortga qaytarib bo'lmaydi. Davom etaymi?",
+    admin_more_label: "🗂 Bo'limlar",
+    delete_user_confirm: "{name} xodimini tizimdan o'chirasizmi? Bu amalni ortga qaytarib bo'lmaydi.",
+    toast_user_deleted: "✅ Xodim o'chirildi",
 
     profile_title: '👤 Profil',
     avatar_change: "Rasmni o'zgartirish", avatar_hint: "Profil rasmini o'zgartirish uchun kamera belgisini bosing",
@@ -232,6 +238,9 @@ const I18N = {
     wipe_note: 'Ҳамаи кормандонро (ба ғайр аз шумо) ва таърихи танаффусро тоза кардан — барои сар кардан аз нав.',
     btn_wipe_all: 'Ҳамаи кормандонро тоза кардан',
     wipe_confirm: 'ҲАМАИ кормандон ва таърихи танаффус нест карда мешавад. Ин амалро баргардонидан мумкин нест. Идома медиҳед?',
+    admin_more_label: '🗂 Бахшҳо',
+    delete_user_confirm: 'Корманди {name}-ро аз низом нест мекунед? Ин амалро баргардонидан мумкин нест.',
+    toast_user_deleted: '✅ Корманд нест карда шуд',
 
     profile_title: '👤 Профил',
     avatar_change: 'Тағйир додани расм', avatar_hint: 'Барои тағйир додани акси профил тасвири камераро зер кунед',

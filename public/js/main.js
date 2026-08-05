@@ -578,7 +578,7 @@ function showPage(name) {
 
   if (name === 'auth') renderAuth();
   if (name === 'dashboard') { renderDashboardShell(); loadStatusAndRender(); loadSchedule(); startPolling(); }
-  if (name === 'admin') { renderAdminShell(); loadStatusAndRender(); loadAdminExtras(); startPolling(); }
+  if (name === 'admin') { renderAdminShell(); loadStatusAndRender(); startPolling(); }
   if (name === 'profile') renderProfile();
   if (name === 'announcements') { renderAnnouncementsPage(); if (announcementsState.hasUnread) markAnnouncementsSeen(); }
   if (name === 'chat') renderChatPage();
@@ -818,6 +818,8 @@ function renderDashboardBody() {
 }
 
 // ==================== ADMIN ====================
+let adminOpenSection = null; // 'settings' | 'history' | 'announcement' | 'addEmployee' | 'employees' | 'danger' | null
+
 function renderAdminShell() {
   document.getElementById('page-admin').innerHTML = `
     <div class="dashboard-page">
@@ -828,7 +830,54 @@ function renderAdminShell() {
       <div id="admin-body">...</div>
 
       <div class="break-section">
-        <h3>${t('section_settings')}</h3>
+        <h3>${t('admin_more_label')}</h3>
+        <div class="admin-menu-grid" id="admin-menu-grid"></div>
+        <div id="admin-section-panel"></div>
+      </div>
+    </div>
+  `;
+  adminOpenSection = null;
+  renderAdminMenu();
+}
+
+function renderAdminMenu() {
+  const grid = document.getElementById('admin-menu-grid');
+  if (!grid) return;
+  const isSuper = !!(state.user && state.user.isSuperAdmin);
+
+  const cards = [
+    { key: 'settings', icon: '⚙️', label: t('section_settings') },
+    { key: 'history', icon: '📋', label: t('section_history') },
+    { key: 'announcement', icon: '📢', label: t('section_announcements') },
+    { key: 'addEmployee', icon: '➕', label: t('section_add_employee') },
+    { key: 'employees', icon: '👥', label: t('section_users') },
+  ];
+  if (isSuper) cards.push({ key: 'danger', icon: '⚠️', label: t('section_danger'), danger: true });
+
+  grid.innerHTML = cards.map(c => `
+    <button type="button" class="admin-menu-card ${c.danger ? 'admin-menu-card-danger' : ''} ${adminOpenSection === c.key ? 'active' : ''}" onclick="openAdminSection('${c.key}')">
+      <span class="admin-menu-icon">${c.icon}</span>
+      <span class="admin-menu-label">${c.label}</span>
+    </button>
+  `).join('');
+}
+
+function openAdminSection(key) {
+  adminOpenSection = adminOpenSection === key ? null : key;
+  renderAdminMenu();
+  renderAdminSectionPanel();
+}
+
+function renderAdminSectionPanel() {
+  const panel = document.getElementById('admin-section-panel');
+  if (!panel) return;
+
+  if (adminOpenSection === 'danger' && !(state.user && state.user.isSuperAdmin)) adminOpenSection = null;
+  if (!adminOpenSection) { panel.innerHTML = ''; return; }
+
+  if (adminOpenSection === 'settings') {
+    panel.innerHTML = `
+      <div class="break-section admin-section-open">
         <form id="settings-form" class="settings-form settings-form-wide">
           <div class="form-group">
             <label class="form-label">${t('label_duration')}</label>
@@ -850,9 +899,17 @@ function renderAdminShell() {
           <button type="submit" class="btn btn-primary">${t('btn_save_settings')}</button>
         </form>
       </div>
-
-      <div class="break-section">
-        <h3>${t('section_history')}</h3>
+    `;
+    document.getElementById('settings-form').addEventListener('submit', saveSettings);
+    if (state.status) {
+      document.getElementById('set-duration').value = state.status.settings.breakDurationMinutes;
+      document.getElementById('set-max').value = state.status.settings.maxConcurrent;
+      document.getElementById('set-workstart').value = state.status.settings.workStart;
+      document.getElementById('set-workend').value = state.status.settings.workEnd;
+    }
+  } else if (adminOpenSection === 'history') {
+    panel.innerHTML = `
+      <div class="break-section admin-section-open">
         <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
           <input type="date" class="form-input" id="history-date" style="max-width:200px">
           <button class="btn btn-secondary btn-sm" onclick="loadHistory()">${t('btn_show')}</button>
@@ -860,9 +917,12 @@ function renderAdminShell() {
         </div>
         <div id="history-body"></div>
       </div>
-
-      <div class="break-section">
-        <h3>${t('section_announcements')}</h3>
+    `;
+    document.getElementById('history-date').value = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Moscow' });
+    loadHistory();
+  } else if (adminOpenSection === 'announcement') {
+    panel.innerHTML = `
+      <div class="break-section admin-section-open">
         <form id="announcement-form" class="settings-form" style="grid-template-columns:1fr;align-items:stretch">
           <div class="form-group">
             <label class="form-label">${t('field_title')}</label>
@@ -876,9 +936,11 @@ function renderAdminShell() {
           <button type="submit" class="btn btn-primary">${t('btn_send')}</button>
         </form>
       </div>
-
-      <div class="break-section">
-        <h3>${t('section_add_employee')}</h3>
+    `;
+    document.getElementById('announcement-form').addEventListener('submit', sendAnnouncement);
+  } else if (adminOpenSection === 'addEmployee') {
+    panel.innerHTML = `
+      <div class="break-section admin-section-open">
         <form id="employee-form" class="settings-form settings-form-wide">
           <div class="form-group">
             <label class="form-label">${t('field_firstname')}</label>
@@ -900,26 +962,21 @@ function renderAdminShell() {
           <button type="submit" class="btn btn-primary">${t('btn_add_employee')}</button>
         </form>
       </div>
-
-      <div class="break-section">
-        <h3>${t('section_users')}</h3>
-        <div id="users-body"></div>
-      </div>
-
-      <div class="break-section">
-        <h3>${t('section_danger')}</h3>
+    `;
+    document.getElementById('employee-form').addEventListener('submit', addEmployee);
+  } else if (adminOpenSection === 'employees') {
+    panel.innerHTML = `<div class="break-section admin-section-open"><div id="users-body"></div></div>`;
+    loadUsers();
+  } else if (adminOpenSection === 'danger') {
+    panel.innerHTML = `
+      <div class="break-section admin-section-open">
         <div class="person-list" style="padding:16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
           <span style="color:var(--text2);font-size:0.88rem">${t('wipe_note')}</span>
           <button class="btn btn-secondary" style="border-color:var(--red);color:var(--red)" onclick="wipeAllEmployees()">${t('btn_wipe_all')}</button>
         </div>
       </div>
-    </div>
-  `;
-  document.getElementById('employee-form').addEventListener('submit', addEmployee);
-  document.getElementById('settings-form').addEventListener('submit', saveSettings);
-  document.getElementById('announcement-form').addEventListener('submit', sendAnnouncement);
-  const dateInput = document.getElementById('history-date');
-  dateInput.value = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Moscow' });
+    `;
+  }
 }
 
 function renderAdminBody() {
@@ -959,10 +1016,11 @@ function renderAdminBody() {
     </div>
   `;
 
-  document.getElementById('set-duration').value = s.settings.breakDurationMinutes;
-  document.getElementById('set-max').value = s.settings.maxConcurrent;
-  document.getElementById('set-workstart').value = s.settings.workStart;
-  document.getElementById('set-workend').value = s.settings.workEnd;
+  const setVal = (id, val) => { const field = document.getElementById(id); if (field) field.value = val; };
+  setVal('set-duration', s.settings.breakDurationMinutes);
+  setVal('set-max', s.settings.maxConcurrent);
+  setVal('set-workstart', s.settings.workStart);
+  setVal('set-workend', s.settings.workEnd);
   tickCountdowns();
 }
 
@@ -1036,16 +1094,13 @@ function exportHistoryCSV() {
   URL.revokeObjectURL(url);
 }
 
-async function loadAdminExtras() {
-  loadHistory();
-  loadUsers();
-}
-
 async function loadUsers() {
   const res = await api('/admin/users?limit=50');
   const body = document.getElementById('users-body');
   if (!body) return;
   if (res.error) { body.innerHTML = `<p class="error-msg">${res.error}</p>`; return; }
+
+  const isSuper = !!(state.user && state.user.isSuperAdmin);
 
   body.innerHTML = `
     <div class="history-table">
@@ -1060,12 +1115,22 @@ async function loadUsers() {
           <span style="display:flex;gap:6px;flex-wrap:wrap">
             <button class="btn btn-secondary btn-sm" onclick="resetUserPassword('${u.id}', '${escapeHtml(u.firstName)} ${escapeHtml(u.lastName)}')">${t('btn_reset_password')}</button>
             <button class="btn btn-secondary btn-sm" onclick="toggleBan('${u.id}', ${!u.isBanned})">${u.isBanned ? t('btn_unban') : t('btn_ban')}</button>
-            <button class="btn btn-secondary btn-sm" onclick="toggleAdmin('${u.id}', ${!u.isAdmin})">${u.isAdmin ? t('btn_remove_admin') : t('btn_make_admin')}</button>
+            ${isSuper ? `<button class="btn btn-secondary btn-sm" onclick="toggleAdmin('${u.id}', ${!u.isAdmin})">${u.isAdmin ? t('btn_remove_admin') : t('btn_make_admin')}</button>` : ''}
+            ${isSuper ? `<button class="btn btn-secondary btn-sm" style="border-color:var(--red);color:var(--red)" onclick="deleteUser('${u.id}', '${escapeHtml(u.firstName)} ${escapeHtml(u.lastName)}')">${t('btn_delete')}</button>` : ''}
           </span>
         </div>
       `).join('')}
     </div>
   `;
+}
+
+async function deleteUser(id, name) {
+  if (!confirm(t('delete_user_confirm').replace('{name}', name))) return;
+  const res = await api(`/admin/users/${id}`, { method: 'DELETE' });
+  if (res.error) return toast(res.error, true);
+  toast(t('toast_user_deleted'));
+  loadUsers();
+  loadStatusAndRender();
 }
 
 async function toggleBan(id, isBanned) {

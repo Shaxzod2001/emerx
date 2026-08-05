@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const adminAuth = require('../middleware/adminAuth');
+const superAdminAuth = require('../middleware/superAdminAuth');
 const { users, breaks } = require('../database');
 const { todayStr } = require('../lib/breakSettings');
 const { t, getLang } = require('../lib/i18nServer');
@@ -79,8 +80,8 @@ router.get('/users', async (req, res) => {
   }
 });
 
-// ==================== ADMIN BERISH / OLISH ====================
-router.put('/users/:id/admin', async (req, res) => {
+// ==================== ADMIN BERISH / OLISH (faqat super admin) ====================
+router.put('/users/:id/admin', superAdminAuth, async (req, res) => {
   const lang = getLang(req);
   try {
     // O'zini admin huquqidan mahrum qila olmaydi
@@ -133,8 +134,8 @@ router.put('/users/:id/password', async (req, res) => {
   }
 });
 
-// ==================== FOYDALANUVCHINI O'CHIRISH ====================
-router.delete('/users/:id', async (req, res) => {
+// ==================== FOYDALANUVCHINI O'CHIRISH (faqat super admin) ====================
+router.delete('/users/:id', superAdminAuth, async (req, res) => {
   const lang = getLang(req);
   try {
     if (req.params.id === req.adminUser._id)
@@ -188,10 +189,10 @@ router.post('/employees', async (req, res) => {
   }
 });
 
-// ==================== BARCHA XODIMLARNI TOZALASH ====================
+// ==================== BARCHA XODIMLARNI TOZALASH (faqat super admin) ====================
 // O'zini (chaqiruvchi adminni) saqlab qolgan holda qolgan hammani soft-delete qiladi
 // va bugungi/o'tgan abet yozuvlarini tozalaydi — yangi jamoani nol nuqtadan boshlash uchun.
-router.post('/wipe-all', async (req, res) => {
+router.post('/wipe-all', superAdminAuth, async (req, res) => {
   const lang = getLang(req);
   try {
     const all = await users.findAsync({});
