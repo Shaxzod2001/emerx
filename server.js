@@ -13,6 +13,7 @@ const path = require('path');
 const jwt = require('jsonwebtoken');
 const bus = require('./lib/bus');
 const { messages, users, directMessages } = require('./database');
+const push = require('./lib/push');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'emerx_secret_2024';
 
@@ -36,6 +37,7 @@ app.use('/api/breaks',        require('./routes/breaks'));
 app.use('/api/profile',       require('./routes/profile'));
 app.use('/api/admin',         require('./routes/admin'));
 app.use('/api/announcements', require('./routes/announcements'));
+app.use('/api/push',          require('./routes/push'));
 
 // ==================== SOCKET.IO — ABET HOLATI JONLI YANGILANISHI ====================
 const io = new Server(server, {
@@ -219,6 +221,11 @@ io.on('connection', async (socket) => {
       });
       emitToUser(chatUser.id, 'dm:message', msg);
       emitToUser(to, 'dm:message', msg);
+
+      // Qabul qiluvchi hozir onlayn bo'lmasa — push-bildirishnoma yuboramiz
+      if (!userSockets.has(to) || !userSockets.get(to).size) {
+        push.sendToUser(to, { title: chatUser.fullName, body: trimmed, url: '/' }).catch(() => {});
+      }
     } catch (e) {
       console.error('dm insert xato:', e.message);
       socket.emit('dm:error', 'server_error');

@@ -52,7 +52,7 @@ const I18N = {
     section_settings: '🛠 Настройки', label_duration: 'Длительность обеда (минут)', label_maxconcurrent: 'Сколько человек может уйти одновременно',
     label_workstart: 'Начало рабочего дня', label_workend: 'Конец рабочего дня',
     btn_save_settings: '💾 Сохранить',
-    section_history: '📋 История', btn_show: 'Показать',
+    section_history: '📋 История', btn_show: 'Показать', btn_export: '⬇️ Экспорт (CSV)', export_empty: 'Нет данных для экспорта',
     th_employee: 'Сотрудник', th_left: 'Ушёл', th_return: 'Вернулся', th_status: 'Статус',
     status_active: '🍽️ На обеде', status_queued: '⏳ В очереди', status_booked: '📅 Бронь', status_completed: '✅ Вернулся', status_cancelled: '✖ Отменено',
     history_empty: 'Данных за эту дату нет',
@@ -68,6 +68,11 @@ const I18N = {
     wipe_confirm: 'Удалить ВСЕХ сотрудников и всю историю обедов? Это действие необратимо.',
 
     profile_title: '👤 Профиль',
+    push_section_title: '🔔 Push-уведомления',
+    push_enable: 'Включить push-уведомления', push_disable: 'Отключить push-уведомления',
+    push_unsupported: 'Ваш браузер не поддерживает push-уведомления',
+    push_denied: 'Разрешение на уведомления не получено',
+    push_enabled_toast: '✅ Push-уведомления включены', push_disabled_toast: 'Push-уведомления отключены',
 
     toast_went: '🍽️ Вы ушли на обед!', toast_queued: '⏳ Вы поставлены в очередь',
     toast_returned: '✅ С возвращением!', toast_queue_cancelled: 'Очередь отменена',
@@ -128,7 +133,7 @@ const I18N = {
     section_settings: '🛠 Sozlamalar', label_duration: 'Abet davomiyligi (daqiqa)', label_maxconcurrent: 'Bir vaqtda nechta kishi chiqishi mumkin',
     label_workstart: 'Ish kuni boshlanishi', label_workend: 'Ish kuni tugashi',
     btn_save_settings: '💾 Saqlash',
-    section_history: '📋 Tarix', btn_show: "Ko'rsatish",
+    section_history: '📋 Tarix', btn_show: "Ko'rsatish", btn_export: '⬇️ Eksport (CSV)', export_empty: "Eksport qilish uchun ma'lumot yo'q",
     th_employee: 'Xodim', th_left: 'Chiqdi', th_return: 'Qaytdi', th_status: 'Holat',
     status_active: '🍽️ Abetda', status_queued: '⏳ Navbatda', status_booked: '📅 Band', status_completed: '✅ Qaytgan', status_cancelled: '✖ Bekor qilingan',
     history_empty: "Bu sana uchun ma'lumot yo'q",
@@ -144,6 +149,11 @@ const I18N = {
     wipe_confirm: "BARCHA xodimlar va abet tarixi o'chiriladi. Bu amalni ortga qaytarib bo'lmaydi. Davom etaymi?",
 
     profile_title: '👤 Profil',
+    push_section_title: '🔔 Push-bildirishnomalar',
+    push_enable: 'Push-bildirishnomalarni yoqish', push_disable: 'Push-bildirishnomalarni o\'chirish',
+    push_unsupported: 'Brauzeringiz push-bildirishnomalarni qo\'llab-quvvatlamaydi',
+    push_denied: 'Bildirishnoma uchun ruxsat berilmadi',
+    push_enabled_toast: '✅ Push-bildirishnomalar yoqildi', push_disabled_toast: "Push-bildirishnomalar o'chirildi",
 
     toast_went: '🍽️ Abetga chiqdingiz!', toast_queued: "⏳ Navbatga qo'yildingiz",
     toast_returned: '✅ Qaytdingiz!', toast_queue_cancelled: 'Navbat bekor qilindi',
@@ -204,7 +214,7 @@ const I18N = {
     section_settings: '🛠 Танзимот', label_duration: 'Давомнокии танаффус (дақиқа)', label_maxconcurrent: 'Дар як вақт чанд нафар рафта метавонанд',
     label_workstart: 'Оғози рӯзи корӣ', label_workend: 'Анҷоми рӯзи корӣ',
     btn_save_settings: '💾 Сабт кардан',
-    section_history: '📋 Таърих', btn_show: 'Нишон додан',
+    section_history: '📋 Таърих', btn_show: 'Нишон додан', btn_export: '⬇️ Экспорт (CSV)', export_empty: 'Барои содирот маълумот нест',
     th_employee: 'Корманд', th_left: 'Рафт', th_return: 'Баргашт', th_status: 'Ҳолат',
     status_active: '🍽️ Дар танаффус', status_queued: '⏳ Дар навбат', status_booked: '📅 Брон', status_completed: '✅ Баргашт', status_cancelled: '✖ Бекоршуда',
     history_empty: 'Барои ин сана маълумот нест',
@@ -220,6 +230,11 @@ const I18N = {
     wipe_confirm: 'ҲАМАИ кормандон ва таърихи танаффус нест карда мешавад. Ин амалро баргардонидан мумкин нест. Идома медиҳед?',
 
     profile_title: '👤 Профил',
+    push_section_title: '🔔 Огоҳиномаҳои push',
+    push_enable: 'Огоҳиномаҳои push-ро фаъол кардан', push_disable: 'Огоҳиномаҳои push-ро хомӯш кардан',
+    push_unsupported: 'Браузери шумо огоҳиномаҳои push-ро дастгирӣ намекунад',
+    push_denied: 'Иҷозат барои огоҳинома дода нашуд',
+    push_enabled_toast: '✅ Огоҳиномаҳои push фаъол шуданд', push_disabled_toast: 'Огоҳиномаҳои push хомӯш карда шуданд',
 
     toast_went: '🍽️ Шумо ба танаффус рафтед!', toast_queued: '⏳ Шумо ба навбат гузошта шудед',
     toast_returned: '✅ Хуш омадед!', toast_queue_cancelled: 'Навбат бекор карда шуд',

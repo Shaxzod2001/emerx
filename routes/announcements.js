@@ -6,6 +6,7 @@ const { announcements, users } = require('../database');
 const { t, getLang } = require('../lib/i18nServer');
 const { sanitize } = require('../lib/validators');
 const bus = require('../lib/bus');
+const push = require('../lib/push');
 
 function notifyChanged() {
   bus.emit('announcements:changed');
@@ -63,6 +64,7 @@ router.post('/', adminAuth, async (req, res) => {
     });
 
     notifyChanged();
+    push.sendToAllExcept(req.user.id, { title: cleanTitle, body: cleanBody, url: '/' }).catch(() => {});
     res.json({ success: true, announcement: doc });
   } catch (e) {
     console.error('announcements POST xato:', e.message);
