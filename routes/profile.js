@@ -85,4 +85,20 @@ router.put('/password', auth, async (req, res) => {
   }
 });
 
+// ==================== SHAXSIY XABARLAR UCHUN FOYDALANUVCHILAR RO'YXATI ====================
+router.get('/contacts', auth, async (req, res) => {
+  const lang = getLang(req);
+  try {
+    const all = await users.findAsync({});
+    const list = all
+      .filter(u => !u._deleted && !u.isBanned && u._id !== req.user.id)
+      .map(u => ({ id: u._id, firstName: u.firstName, lastName: u.lastName, isAdmin: !!u.isAdmin }))
+      .sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`, 'ru'));
+    res.json({ users: list });
+  } catch (e) {
+    console.error('❌ profile/contacts xatosi:', e.message);
+    res.status(500).json({ error: t('server_error', lang) });
+  }
+});
+
 module.exports = router;

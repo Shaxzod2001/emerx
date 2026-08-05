@@ -24,6 +24,11 @@ let pollTimer = null;     // fallback polling
 let announcementsTimer = null; // bildirishnomalarni fon rejimida yangilab turish
 let socket = null;
 let chatMessages = [];
+let chatMode = 'group'; // 'group' | 'dm'
+let dmContacts = [];
+let dmActiveContact = null; // hozir ochiq bo'lgan shaxsiy suhbatdosh id
+let dmMessages = {};        // contactId -> xabarlar ro'yxati
+let dmUnread = new Set();   // hali ko'rilmagan shaxsiy xabar bo'lgan kontaktlar
 
 // ==================== API HELPER ====================
 async function api(path, opts = {}) {
@@ -174,13 +179,57 @@ function connectSocket() {
     if (state.currentPage === 'chat') renderChatMessages();
   });
   socket.on('chat:error', (code) => {
-    const map = { rate_limit: t('chat_rate_limit'), auth_required: t('chat_auth_required'), no_access: t('chat_no_access') };
+    const map = {
+      rate_limit: t('chat_rate_limit'), auth_required: t('chat_auth_required'),
+      no_access: t('chat_no_access'), invalid_length: t('chat_invalid_length'),
+    };
+    toast(map[code] || code, true);
+  });
+
+  socket.on('dm:history', ({ with: withId, messages: history }) => {
+    dmMessages[withId] = history;
+    if (state.currentPage === 'chat' && chatMode === 'dm' && dmActiveContact === withId) {
+      renderDMThread();
+    }
+  });
+  socket.on('dm:message', (msg) => {
+    const me = state.user && state.user.id;
+    const partner = msg.fromId === me ? msg.toId : msg.fromId;
+    if (!dmMessages[partner]) dmMessages[partner] = [];
+    dmMessages[partner].push(msg);
+
+    const viewing = state.currentPage === 'chat' && chatMode === 'dm' && dmActiveContact === partner;
+    if (viewing) {
+      renderDMThread();
+      scrollChatToBottom();
+    } else if (msg.fromId !== me) {
+      dmUnread.add(partner);
+      if (state.currentPage === 'chat' && chatMode === 'dm') renderDMContacts();
+    }
+  });
+  socket.on('dm:deleted', ({ id, with: withId }) => {
+    const list = dmMessages[withId];
+    const m = list && list.find(x => x._id === id);
+    if (m) m.deleted = true;
+    if (state.currentPage === 'chat' && chatMode === 'dm' && dmActiveContact === withId) renderDMThread();
+  });
+  socket.on('dm:error', (code) => {
+    const map = {
+      rate_limit: t('chat_rate_limit'), auth_required: t('chat_auth_required'),
+      no_access: t('chat_no_access'), invalid_length: t('chat_invalid_length'),
+      not_found: t('dm_not_found'),
+    };
     toast(map[code] || code, true);
   });
 }
 function disconnectSocket() {
   if (socket) { socket.disconnect(); socket = null; }
   chatMessages = [];
+  chatMode = 'group';
+  dmContacts = [];
+  dmActiveContact = null;
+  dmMessages = {};
+  dmUnread = new Set();
 }
 
 // ==================== BILDIRISHNOMALAR (Yangiliklar sahifasi) ====================
@@ -259,13 +308,32 @@ function renderChatPage() {
   if (!page) return;
   page.innerHTML = `
     <div class="chat-page">
-      <div class="chat-header"><h1>${t('chat_title')}</h1></div>
-      <div class="chat-window">
-        <div class="chat-messages" id="chat-messages"></div>
-        <div class="chat-input-row">
-          <input class="chat-input" id="chat-input" maxlength="300" placeholder="${t('chat_placeholder')}">
-          <button class="btn btn-primary chat-send-btn" id="chat-send-btn">${t('chat_send')}</button>
+      <div class="chat-header">
+        <h1>${t('chat_title')}</h1>
+        <div class="chat-tabs">
+          <button class="chat-tab ${chatMode === 'group' ? 'active' : ''}" id="chat-tab-group">${t('chat_tab_group')}</button>
+          <button class="chat-tab ${chatMode === 'dm' ? 'active' : ''}" id="chat-tab-dm">${t('chat_tab_private')}</button>
         </div>
+      </div>
+      <div id="chat-body"></div>
+    </div>
+  `;
+  document.getElementById('chat-tab-group').onclick = () => { chatMode = 'group'; renderChatPage(); };
+  document.getElementById('chat-tab-dm').onclick = () => { chatMode = 'dm'; renderChatPage(); loadDMContacts(); };
+
+  if (chatMode === 'group') renderGroupChat();
+  else renderDMPage();
+}
+
+function renderGroupChat() {
+  const body = document.getElementById('chat-body');
+  if (!body) return;
+  body.innerHTML = `
+    <div class="chat-window">
+      <div class="chat-messages" id="chat-messages"></div>
+      <div class="chat-input-row">
+        <input class="chat-input" id="chat-input" maxlength="300" placeholder="${t('chat_placeholder')}">
+        <button class="btn btn-primary chat-send-btn" id="chat-send-btn">${t('chat_send')}</button>
       </div>
     </div>
   `;
@@ -308,7 +376,7 @@ function renderChatMessages() {
 }
 
 function scrollChatToBottom() {
-  const el = document.getElementById('chat-messages');
+  const el = document.getElementById('chat-messages') || document.getElementById('dm-messages');
   if (el) el.scrollTop = el.scrollHeight;
 }
 
@@ -323,6 +391,129 @@ function sendChatMessage() {
 
 function deleteChatMessage(id) {
   if (socket) socket.emit('chat:delete', id);
+}
+
+// ==================== SHAXSIY XABARLAR (DM) ====================
+async function loadDMContacts() {
+  const res = await api('/profile/contacts');
+  if (res.error) return;
+  dmContacts = res.users || [];
+  if (state.currentPage === 'chat' && chatMode === 'dm') renderDMContacts();
+}
+
+function renderDMPage() {
+  const body = document.getElementById('chat-body');
+  if (!body) return;
+  body.innerHTML = `
+    <div class="dm-layout ${dmActiveContact ? 'dm-thread-open' : ''}">
+      <div class="dm-contacts" id="dm-contacts"></div>
+      <div class="dm-thread" id="dm-thread"></div>
+    </div>
+  `;
+  renderDMContacts();
+  renderDMThread();
+  if (!dmContacts.length) loadDMContacts();
+}
+
+function renderDMContacts() {
+  const el = document.getElementById('dm-contacts');
+  if (!el) return;
+
+  if (!dmContacts.length) {
+    el.innerHTML = `<div class="chat-empty">${t('chat_contacts_empty')}</div>`;
+    return;
+  }
+
+  el.innerHTML = dmContacts.map(c => {
+    const name = `${c.firstName} ${c.lastName}`.trim();
+    const initial = (name || '?').trim().charAt(0).toUpperCase();
+    const active = dmActiveContact === c.id;
+    const unread = dmUnread.has(c.id);
+    return `
+      <div class="dm-contact ${active ? 'active' : ''}" onclick="openDMContact('${c.id}')">
+        <div class="chat-avatar"><div class="chat-avatar-letter">${escapeHtml(initial)}</div></div>
+        <div class="dm-contact-name">${escapeHtml(name)}${c.isAdmin ? ` <span class="chat-admin-badge">ADMIN</span>` : ''}</div>
+        ${unread ? '<span class="dm-unread-dot"></span>' : ''}
+      </div>
+    `;
+  }).join('');
+}
+
+function openDMContact(id) {
+  dmActiveContact = id;
+  dmUnread.delete(id);
+  if (socket) socket.emit('dm:open', id);
+  document.querySelector('.dm-layout')?.classList.add('dm-thread-open');
+  renderDMContacts();
+  renderDMThread();
+  scrollChatToBottom();
+}
+
+function closeDMThread() {
+  dmActiveContact = null;
+  renderDMPage();
+}
+
+function renderDMThread() {
+  const el = document.getElementById('dm-thread');
+  if (!el) return;
+
+  if (!dmActiveContact) {
+    el.innerHTML = `<div class="dm-empty-state">${t('chat_select_contact')}</div>`;
+    return;
+  }
+
+  const contact = dmContacts.find(c => c.id === dmActiveContact);
+  const name = contact ? `${contact.firstName} ${contact.lastName}`.trim() : '';
+  const msgs = dmMessages[dmActiveContact] || [];
+
+  const list = !msgs.length
+    ? `<div class="chat-empty">${t('chat_empty')}</div>`
+    : msgs.map(m => {
+        const mine = state.user && m.fromId === state.user.id;
+        const canDelete = mine && !m.deleted;
+        return `
+          <div class="chat-msg ${mine ? 'chat-msg-me' : ''} ${m.deleted ? 'deleted' : ''}">
+            <div class="chat-msg-body">
+              <div class="chat-msg-header">
+                <span class="chat-time">${fmtTime(m.createdAt)}</span>
+                ${canDelete ? `<button class="chat-del-btn" onclick="deleteDMMessage('${m._id}')" title="${t('btn_delete')}">✖</button>` : ''}
+              </div>
+              <div class="chat-msg-text">${m.deleted ? t('chat_deleted') : escapeHtml(m.text)}</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+  el.innerHTML = `
+    <div class="dm-thread-header">
+      <button class="dm-back-btn" onclick="closeDMThread()">←</button>
+      <span>${escapeHtml(name)}</span>
+    </div>
+    <div class="chat-messages" id="dm-messages">${list}</div>
+    <div class="chat-input-row">
+      <input class="chat-input" id="dm-input" maxlength="300" placeholder="${t('dm_placeholder')}">
+      <button class="btn btn-primary chat-send-btn" id="dm-send-btn">${t('chat_send')}</button>
+    </div>
+  `;
+  document.getElementById('dm-send-btn').onclick = sendDMMessage;
+  document.getElementById('dm-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') sendDMMessage();
+  });
+  scrollChatToBottom();
+}
+
+function sendDMMessage() {
+  const input = document.getElementById('dm-input');
+  if (!input || !dmActiveContact) return;
+  const text = input.value.trim();
+  if (!text || !socket) return;
+  socket.emit('dm:send', { to: dmActiveContact, text });
+  input.value = '';
+}
+
+function deleteDMMessage(id) {
+  if (socket) socket.emit('dm:delete', id);
 }
 
 // ==================== NAV ====================

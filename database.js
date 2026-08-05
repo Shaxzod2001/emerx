@@ -223,7 +223,7 @@ function makeSmartCollection(name, indexes = []) {
 }
 
 // ==================== EKSPORT ====================
-let users, breaks, settings, announcements, messages;
+let users, breaks, settings, announcements, messages, directMessages;
 
 if (USE_LOCAL_DB) {
   console.log('📁 NeDB (lokal) ishlatilmoqda — data/ papkasi');
@@ -232,6 +232,7 @@ if (USE_LOCAL_DB) {
   settings      = makeNedbCollection('settings');
   announcements = makeNedbCollection('announcements');
   messages      = makeNedbCollection('messages');
+  directMessages = makeNedbCollection('directMessages');
 } else {
   console.log('☁️  MongoDB Atlas sinab ko\'rilmoqda, muvaffaqiyatsiz bo\'lsa NeDB...');
   users         = makeSmartCollection('users', [{ fieldName: 'phone', unique: true }]);
@@ -239,6 +240,7 @@ if (USE_LOCAL_DB) {
   settings      = makeSmartCollection('settings');
   announcements = makeSmartCollection('announcements');
   messages      = makeSmartCollection('messages');
+  directMessages = makeSmartCollection('directMessages');
 }
 
 module.exports = {
@@ -247,6 +249,7 @@ module.exports = {
   settings,
   announcements,
   messages,
+  directMessages,
   getDb: USE_LOCAL_DB ? null : getDb,
   checkAtlas: USE_LOCAL_DB ? null : checkAtlas,
 };
