@@ -64,7 +64,7 @@ router.post('/', adminAuth, async (req, res) => {
     });
 
     notifyChanged();
-    push.sendToAllExcept(req.user.id, { title: cleanTitle, body: cleanBody, url: '/' }).catch(() => {});
+    push.sendToAll({ title: cleanTitle, body: cleanBody, url: '/' }).catch(() => {});
     res.json({ success: true, announcement: doc });
   } catch (e) {
     console.error('announcements POST xato:', e.message);

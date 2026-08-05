@@ -143,6 +143,10 @@ io.on('connection', async (socket) => {
         createdAt: new Date().toISOString(),
       });
       io.emit('chat:message', msg);
+
+      // Hozir ilovada bo'lmagan (oflayn) foydalanuvchilarga push-bildirishnoma
+      const onlineIds = Array.from(userSockets.keys());
+      push.sendToOfflineExcept(chatUser.id, onlineIds, { title: chatUser.fullName, body: trimmed, url: '/' }).catch(() => {});
     } catch (e) {
       console.error('chat insert xato:', e.message);
       socket.emit('chat:error', 'server_error');
