@@ -7,8 +7,8 @@
   const ctx = canvas.getContext('2d');
 
   let W, H, particles = [], animId;
-  const COUNT = 45;
-  const COLORS = ['#2fbf5f', '#3fd674', '#f5a524'];
+  const COUNT = 26;
+  const COLORS = ['#1f9c4a', '#3fd674', '#c8790e'];
   const MAX_DIST = 130;
 
   function resize() {
@@ -22,9 +22,9 @@
     return {
       x: rand(0, W), y: rand(0, H),
       vx: rand(-0.35, 0.35), vy: rand(-0.35, 0.35),
-      r: rand(1.5, 3.5),
+      r: rand(1.2, 2.6),
       color: COLORS[Math.floor(Math.random() * COLORS.length)],
-      alpha: rand(0.3, 0.75),
+      alpha: rand(0.12, 0.28),
     };
   }
 
@@ -52,7 +52,7 @@
         const dx = a.x - b.x, dy = a.y - b.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
         if (dist < MAX_DIST) {
-          const opacity = (1 - dist / MAX_DIST) * 0.18;
+          const opacity = (1 - dist / MAX_DIST) * 0.07;
           ctx.beginPath();
           ctx.strokeStyle = a.color;
           ctx.globalAlpha = opacity;
