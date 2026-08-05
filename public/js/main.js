@@ -29,6 +29,8 @@ let dmContacts = [];
 let dmActiveContact = null; // hozir ochiq bo'lgan shaxsiy suhbatdosh id
 let dmMessages = {};        // contactId -> xabarlar ro'yxati
 let dmUnread = new Set();   // hali ko'rilmagan shaxsiy xabar bo'lgan kontaktlar
+let lastHistoryRecords = []; // eksport uchun oxirgi yuklangan tarix yozuvlari
+let lastHistoryDate = '';
 
 // ==================== API HELPER ====================
 async function api(path, opts = {}) {
@@ -837,6 +839,7 @@ function renderAdminShell() {
         <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
           <input type="date" class="form-input" id="history-date" style="max-width:200px">
           <button class="btn btn-secondary btn-sm" onclick="loadHistory()">${t('btn_show')}</button>
+          <button class="btn btn-secondary btn-sm" onclick="exportHistoryCSV()">${t('btn_export')}</button>
         </div>
         <div id="history-body"></div>
       </div>
@@ -969,6 +972,8 @@ async function loadHistory() {
   const res = await api('/breaks/history?date=' + date);
   const body = document.getElementById('history-body');
   if (res.error) { body.innerHTML = `<p class="error-msg">${res.error}</p>`; return; }
+  lastHistoryRecords = res.records;
+  lastHistoryDate = date;
   if (!res.records.length) { body.innerHTML = `<p style="color:var(--text2)">${t('history_empty')}</p>`; return; }
 
   const statusLabel = { active: t('status_active'), queued: t('status_queued'), booked: t('status_booked'), completed: t('status_completed'), cancelled: t('status_cancelled') };
@@ -987,6 +992,31 @@ async function loadHistory() {
       `).join('')}
     </div>
   `;
+}
+
+function exportHistoryCSV() {
+  if (!lastHistoryRecords.length) return toast(t('export_empty'), true);
+
+  const statusLabel = { active: t('status_active'), queued: t('status_queued'), booked: t('status_booked'), completed: t('status_completed'), cancelled: t('status_cancelled') };
+  const csvEscape = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const header = [t('th_employee'), t('th_left'), t('th_return'), t('th_status')];
+  const rows = lastHistoryRecords.map(r => [
+    r.fullName,
+    fmtTime(r.startTime || r.bookedSlot),
+    fmtTime(r.actualEndTime),
+    (statusLabel[r.status] || r.status) + (r.autoEnded ? ' (auto)' : ''),
+  ]);
+  const csv = '﻿' + [header, ...rows].map(row => row.map(csvEscape).join(';')).join('\r\n');
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `x5-abet-${lastHistoryDate}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 async function loadAdminExtras() {
@@ -1116,9 +1146,95 @@ function renderProfile() {
         </div>
         <div class="error-msg" id="pf-pass-error"></div>
         <button class="btn btn-secondary btn-full" onclick="changePassword()">${t('btn_change_password')}</button>
+
+        <div style="height:1px;background:var(--border);margin:24px 0"></div>
+
+        <div class="form-label" style="margin-bottom:10px">${t('push_section_title')}</div>
+        <div id="push-section"></div>
       </div>
     </div>
   `;
+  renderPushSection();
+}
+
+// ==================== PUSH BILDIRISHNOMALARI ====================
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; i++) outputArray[i] = rawData.charCodeAt(i);
+  return outputArray;
+}
+
+function pushSupported() {
+  return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+}
+
+async function getPushSubscription() {
+  if (!pushSupported()) return null;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    return await reg.pushManager.getSubscription();
+  } catch {
+    return null;
+  }
+}
+
+async function renderPushSection() {
+  const el = document.getElementById('push-section');
+  if (!el) return;
+  if (!pushSupported()) {
+    el.innerHTML = `<p style="color:var(--text2);font-size:0.85rem">${t('push_unsupported')}</p>`;
+    return;
+  }
+  const sub = await getPushSubscription();
+  const enabled = !!sub;
+  el.innerHTML = `
+    <button class="btn ${enabled ? 'btn-secondary' : 'btn-primary'} btn-full" id="push-toggle-btn">
+      ${enabled ? t('push_disable') : t('push_enable')}
+    </button>
+  `;
+  const btn = document.getElementById('push-toggle-btn');
+  if (btn) btn.onclick = enabled ? disablePush : enablePush;
+}
+
+async function enablePush() {
+  if (!pushSupported()) return toast(t('push_unsupported'), true);
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') { toast(t('push_denied'), true); return; }
+
+    const keyRes = await api('/push/public-key');
+    if (keyRes.error || !keyRes.publicKey) { toast(keyRes.error || t('push_unsupported'), true); return; }
+
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(keyRes.publicKey),
+    });
+    const res = await api('/push/subscribe', { method: 'POST', body: JSON.stringify(sub.toJSON()) });
+    if (res.error) { toast(res.error, true); }
+    else toast(t('push_enabled_toast'));
+  } catch (e) {
+    console.error('push subscribe xato:', e);
+    toast(t('push_unsupported'), true);
+  }
+  renderPushSection();
+}
+
+async function disablePush() {
+  try {
+    const sub = await getPushSubscription();
+    if (sub) {
+      await api('/push/unsubscribe', { method: 'POST', body: JSON.stringify({ endpoint: sub.endpoint }) });
+      await sub.unsubscribe();
+    }
+    toast(t('push_disabled_toast'));
+  } catch (e) {
+    console.error('push unsubscribe xato:', e);
+  }
+  renderPushSection();
 }
 
 async function saveProfileName() {
