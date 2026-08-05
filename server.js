@@ -12,7 +12,7 @@ const cors = require('cors');
 const path = require('path');
 const jwt = require('jsonwebtoken');
 const bus = require('./lib/bus');
-const { messages, users } = require('./database');
+const { messages, users, directMessages } = require('./database');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'emerx_secret_2024';
 
@@ -54,11 +54,21 @@ bus.on('announcements:changed', () => {
   io.emit('announcements:changed');
 });
 
-// ==================== CHAT — HAMMA FOYDALANUVCHILAR UCHUN UMUMIY ====================
+// ==================== CHAT — HAMMA FOYDALANUVCHILAR UCHUN UMUMIY + SHAXSIY ====================
 const lastMessageTime = new Map(); // spam-dan himoya: userId -> oxirgi xabar vaqti
+const lastDMTime = new Map();      // spam-dan himoya: userId -> oxirgi shaxsiy xabar vaqti
 const RATE_LIMIT_MS = 3000;
 const MAX_MSG_LENGTH = 300;
 const HISTORY_COUNT = 100;
+
+// userId -> socket.id lar to'plami — shaxsiy xabarni faqat ikkala tomonga yetkazish uchun
+const userSockets = new Map();
+
+function emitToUser(userId, event, payload) {
+  const set = userSockets.get(userId);
+  if (!set) return;
+  for (const sid of set) io.to(sid).emit(event, payload);
+}
 
 io.on('connection', async (socket) => {
   let chatUser = null;
@@ -76,6 +86,20 @@ io.on('connection', async (socket) => {
       }
     } catch {}
   }
+
+  if (chatUser) {
+    if (!userSockets.has(chatUser.id)) userSockets.set(chatUser.id, new Set());
+    userSockets.get(chatUser.id).add(socket.id);
+  }
+
+  socket.on('disconnect', () => {
+    if (!chatUser) return;
+    const set = userSockets.get(chatUser.id);
+    if (set) {
+      set.delete(socket.id);
+      if (!set.size) userSockets.delete(chatUser.id);
+    }
+  });
 
   try {
     const all = await messages.findAsync({});
@@ -133,6 +157,86 @@ io.on('connection', async (socket) => {
       io.emit('chat:deleted', msgId);
     } catch (e) {
       console.error('chat delete xato:', e.message);
+    }
+  });
+
+  // ==================== SHAXSIY XABARLAR (ikki foydalanuvchi orasida) ====================
+  socket.on('dm:open', async (withUserId) => {
+    if (!chatUser) return socket.emit('dm:error', 'auth_required');
+    if (typeof withUserId !== 'string' || withUserId === chatUser.id) return;
+
+    try {
+      const target = await users.findOneAsync({ _id: withUserId });
+      if (!target || target._deleted) return socket.emit('dm:error', 'not_found');
+
+      const all = await directMessages.findAsync({
+        $or: [
+          { fromId: chatUser.id, toId: withUserId },
+          { fromId: withUserId, toId: chatUser.id },
+        ],
+      });
+      const history = all
+        .filter(m => !m.deleted)
+        .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+        .slice(-HISTORY_COUNT);
+      socket.emit('dm:history', { with: withUserId, messages: history });
+    } catch (e) {
+      console.error('dm:open xato:', e.message);
+      socket.emit('dm:error', 'server_error');
+    }
+  });
+
+  socket.on('dm:send', async (payload) => {
+    if (!chatUser) return socket.emit('dm:error', 'auth_required');
+    const to = payload?.to;
+    const text = payload?.text;
+    if (!to || typeof to !== 'string' || to === chatUser.id) return;
+
+    if (!text || typeof text !== 'string') return;
+    const trimmed = text.trim();
+    if (!trimmed || trimmed.length > MAX_MSG_LENGTH) {
+      return socket.emit('dm:error', 'invalid_length');
+    }
+
+    const now = Date.now();
+    const last = lastDMTime.get(chatUser.id) || 0;
+    if (now - last < RATE_LIMIT_MS) {
+      return socket.emit('dm:error', 'rate_limit');
+    }
+
+    try {
+      const target = await users.findOneAsync({ _id: to });
+      if (!target || target._deleted) return socket.emit('dm:error', 'not_found');
+
+      lastDMTime.set(chatUser.id, now);
+
+      const msg = await directMessages.insertAsync({
+        fromId: chatUser.id,
+        toId: to,
+        fromName: chatUser.fullName,
+        text: trimmed,
+        createdAt: new Date().toISOString(),
+      });
+      emitToUser(chatUser.id, 'dm:message', msg);
+      emitToUser(to, 'dm:message', msg);
+    } catch (e) {
+      console.error('dm insert xato:', e.message);
+      socket.emit('dm:error', 'server_error');
+    }
+  });
+
+  socket.on('dm:delete', async (msgId) => {
+    if (!chatUser) return;
+    try {
+      const msg = await directMessages.findOneAsync({ _id: msgId });
+      if (!msg || msg.fromId !== chatUser.id) return socket.emit('dm:error', 'no_access');
+
+      await directMessages.updateAsync({ _id: msgId }, { $set: { deleted: true } });
+      const payload = { id: msgId, with: msg.toId };
+      emitToUser(msg.fromId, 'dm:deleted', payload);
+      emitToUser(msg.toId, 'dm:deleted', { id: msgId, with: msg.fromId });
+    } catch (e) {
+      console.error('dm delete xato:', e.message);
     }
   });
 });
