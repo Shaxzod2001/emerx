@@ -779,6 +779,10 @@ body {
   transition: background 0.2s;
 }
 .nav-profile-btn:hover { background: rgba(16,24,40,0.05); }
+.nav-avatar {
+  width: 26px; height: 26px; border-radius: 50%;
+  object-fit: cover; border: 1px solid var(--border); flex-shrink: 0;
+}
 
 .avatar-upload-hint {
   font-size: 0.78rem;
@@ -1264,7 +1268,10 @@ body {
   outline: none;
 }
 .chat-input:focus { border-color: var(--green); }
-.chat-send-btn { padding: 10px 20px; white-space: nowrap; }
+.chat-send-btn {
+  width: 44px; height: 44px; padding: 0; flex-shrink: 0;
+  border-radius: 50%; display: flex; align-items: center; justify-content: center;
+}
 .chat-char-count {
   text-align: right;
   font-size: 0.75rem;
@@ -1321,7 +1328,7 @@ body {
 @media (max-width: 600px) {
   .chat-messages { min-height: 300px; max-height: 380px; }
   .chat-msg-body { max-width: 85%; }
-  .chat-send-btn { padding: 10px 12px; font-size: 0.85rem; }
+  .chat-send-btn { width: 40px; height: 40px; }
 }
 
 /* =============================================

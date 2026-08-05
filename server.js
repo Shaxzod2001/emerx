@@ -84,6 +84,7 @@ io.on('connection', async (socket) => {
           id: decoded.id,
           fullName: `${dbUser.firstName} ${dbUser.lastName}`.trim(),
           isAdmin: !!dbUser.isAdmin,
+          avatar: dbUser.avatar || null,
         };
       }
     } catch {}
@@ -139,6 +140,7 @@ io.on('connection', async (socket) => {
         userId: chatUser.id,
         fullName: chatUser.fullName,
         isAdmin: chatUser.isAdmin,
+        avatar: chatUser.avatar,
         text: trimmed,
         createdAt: new Date().toISOString(),
       });
@@ -220,6 +222,7 @@ io.on('connection', async (socket) => {
         fromId: chatUser.id,
         toId: to,
         fromName: chatUser.fullName,
+        fromAvatar: chatUser.avatar,
         text: trimmed,
         createdAt: new Date().toISOString(),
       });

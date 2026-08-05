@@ -68,6 +68,8 @@ const I18N = {
     wipe_confirm: 'Удалить ВСЕХ сотрудников и всю историю обедов? Это действие необратимо.',
 
     profile_title: '👤 Профиль',
+    avatar_change: 'Изменить фото', avatar_hint: 'Нажмите на значок камеры, чтобы изменить фото профиля',
+    toast_avatar_updated: '✅ Фото профиля обновлено', avatar_invalid: 'Неверный формат изображения или файл слишком большой',
     push_section_title: '🔔 Push-уведомления',
     push_enable: 'Включить push-уведомления', push_disable: 'Отключить push-уведомления',
     push_unsupported: 'Ваш браузер не поддерживает push-уведомления',
@@ -149,6 +151,8 @@ const I18N = {
     wipe_confirm: "BARCHA xodimlar va abet tarixi o'chiriladi. Bu amalni ortga qaytarib bo'lmaydi. Davom etaymi?",
 
     profile_title: '👤 Profil',
+    avatar_change: "Rasmni o'zgartirish", avatar_hint: "Profil rasmini o'zgartirish uchun kamera belgisini bosing",
+    toast_avatar_updated: '✅ Profil rasmi yangilandi', avatar_invalid: "Rasm formati noto'g'ri yoki fayl juda katta",
     push_section_title: '🔔 Push-bildirishnomalar',
     push_enable: 'Push-bildirishnomalarni yoqish', push_disable: 'Push-bildirishnomalarni o\'chirish',
     push_unsupported: 'Brauzeringiz push-bildirishnomalarni qo\'llab-quvvatlamaydi',
@@ -230,6 +234,8 @@ const I18N = {
     wipe_confirm: 'ҲАМАИ кормандон ва таърихи танаффус нест карда мешавад. Ин амалро баргардонидан мумкин нест. Идома медиҳед?',
 
     profile_title: '👤 Профил',
+    avatar_change: 'Тағйир додани расм', avatar_hint: 'Барои тағйир додани акси профил тасвири камераро зер кунед',
+    toast_avatar_updated: '✅ Акси профил навсозӣ шуд', avatar_invalid: 'Формати расм нодуруст ё файл хеле калон аст',
     push_section_title: '🔔 Огоҳиномаҳои push',
     push_enable: 'Огоҳиномаҳои push-ро фаъол кардан', push_disable: 'Огоҳиномаҳои push-ро хомӯш кардан',
     push_unsupported: 'Браузери шумо огоҳиномаҳои push-ро дастгирӣ намекунад',
