@@ -92,7 +92,7 @@ router.post('/register', async (req, res) => {
     );
     res.json({
       token,
-      user: { id: user._id, firstName: cleanFirstName, lastName: cleanLastName, phone: normalizedPhone, isAdmin: isAdminUser(user) }
+      user: { id: user._id, firstName: cleanFirstName, lastName: cleanLastName, phone: normalizedPhone, isAdmin: isAdminUser(user), avatar: null }
     });
   } catch (e) {
     if (e.errorType === 'uniqueViolated') {
@@ -132,7 +132,7 @@ router.post('/login', async (req, res) => {
     );
     res.json({
       token,
-      user: { id: user._id, firstName: user.firstName, lastName: user.lastName, phone: user.phone, isAdmin: isAdminUser(user) }
+      user: { id: user._id, firstName: user.firstName, lastName: user.lastName, phone: user.phone, isAdmin: isAdminUser(user), avatar: user.avatar || null }
     });
   } catch (e) {
     console.error('❌ Login xatosi:', e.message);
@@ -146,7 +146,7 @@ router.get('/me', require('../middleware/auth'), async (req, res) => {
   try {
     const user = await users.findOneAsync({ _id: req.user.id });
     if (!user) return res.status(404).json({ error: t('user_not_found', lang) });
-    res.json({ id: user._id, firstName: user.firstName, lastName: user.lastName, phone: user.phone, isAdmin: isAdminUser(user) });
+    res.json({ id: user._id, firstName: user.firstName, lastName: user.lastName, phone: user.phone, isAdmin: isAdminUser(user), avatar: user.avatar || null });
   } catch (e) {
     console.error('❌ /me xatosi:', e.message);
     res.status(500).json({ error: t('server_error', lang) });

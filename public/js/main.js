@@ -32,6 +32,8 @@ let dmUnread = new Set();   // hali ko'rilmagan shaxsiy xabar bo'lgan kontaktlar
 let lastHistoryRecords = []; // eksport uchun oxirgi yuklangan tarix yozuvlari
 let lastHistoryDate = '';
 
+const SEND_ICON_SVG = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>';
+
 // ==================== API HELPER ====================
 async function api(path, opts = {}) {
   const headers = { 'Content-Type': 'application/json', 'X-Lang': state.lang };
@@ -155,6 +157,14 @@ function logout() {
   showPage('auth');
 }
 
+// Adminlar uchun: qaysi chat/sahifada bo'lishidan qat'iy nazar,
+// har qanday kelgan xabar haqida alert (toast) ko'rsatish.
+function adminAlert(icon, name, text) {
+  if (!state.user || !state.user.isAdmin) return;
+  const preview = (text || '').length > 60 ? text.slice(0, 60) + '…' : (text || '');
+  toast(`${icon} ${name}: ${preview}`);
+}
+
 // ==================== SOCKET.IO (jonli yangilanish) ====================
 function connectSocket() {
   if (socket) return;
@@ -174,6 +184,7 @@ function connectSocket() {
   socket.on('chat:message', (msg) => {
     chatMessages.push(msg);
     if (state.currentPage === 'chat') { renderChatMessages(); scrollChatToBottom(); }
+    if (state.user && msg.userId !== state.user.id) adminAlert('💬', msg.fullName, msg.text);
   });
   socket.on('chat:deleted', (msgId) => {
     const m = chatMessages.find(x => x._id === msgId);
@@ -208,6 +219,7 @@ function connectSocket() {
       dmUnread.add(partner);
       if (state.currentPage === 'chat' && chatMode === 'dm') renderDMContacts();
     }
+    if (msg.fromId !== me) adminAlert('✉️', msg.fromName, msg.text);
   });
   socket.on('dm:deleted', ({ id, with: withId }) => {
     const list = dmMessages[withId];
@@ -335,16 +347,19 @@ function renderGroupChat() {
       <div class="chat-messages" id="chat-messages"></div>
       <div class="chat-input-row">
         <input class="chat-input" id="chat-input" maxlength="300" placeholder="${t('chat_placeholder')}">
-        <button class="btn btn-primary chat-send-btn" id="chat-send-btn">${t('chat_send')}</button>
+        <button class="btn btn-primary chat-send-btn" id="chat-send-btn" title="${t('chat_send')}" aria-label="${t('chat_send')}">${SEND_ICON_SVG}</button>
       </div>
     </div>
   `;
   document.getElementById('chat-send-btn').onclick = sendChatMessage;
-  document.getElementById('chat-input').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') sendChatMessage();
-  });
   renderChatMessages();
   scrollChatToBottom();
+}
+
+function avatarHtml(url, initial) {
+  return url
+    ? `<img class="chat-avatar-img" src="${escapeHtml(url)}" alt="">`
+    : `<div class="chat-avatar-letter">${escapeHtml(initial)}</div>`;
 }
 
 function renderChatMessages() {
@@ -362,7 +377,7 @@ function renderChatMessages() {
     const canDelete = state.user && state.user.isAdmin && !m.deleted;
     return `
       <div class="chat-msg ${mine ? 'chat-msg-me' : ''} ${m.deleted ? 'deleted' : ''}">
-        <div class="chat-avatar"><div class="chat-avatar-letter">${escapeHtml(initial)}</div></div>
+        <div class="chat-avatar">${avatarHtml(m.avatar, initial)}</div>
         <div class="chat-msg-body">
           <div class="chat-msg-header">
             <span class="chat-username ${mine ? 'me' : ''}">${escapeHtml(m.fullName)}</span>
@@ -433,7 +448,7 @@ function renderDMContacts() {
     const unread = dmUnread.has(c.id);
     return `
       <div class="dm-contact ${active ? 'active' : ''}" onclick="openDMContact('${c.id}')">
-        <div class="chat-avatar"><div class="chat-avatar-letter">${escapeHtml(initial)}</div></div>
+        <div class="chat-avatar">${avatarHtml(c.avatar, initial)}</div>
         <div class="dm-contact-name">${escapeHtml(name)}${c.isAdmin ? ` <span class="chat-admin-badge">ADMIN</span>` : ''}</div>
         ${unread ? '<span class="dm-unread-dot"></span>' : ''}
       </div>
@@ -495,13 +510,10 @@ function renderDMThread() {
     <div class="chat-messages" id="dm-messages">${list}</div>
     <div class="chat-input-row">
       <input class="chat-input" id="dm-input" maxlength="300" placeholder="${t('dm_placeholder')}">
-      <button class="btn btn-primary chat-send-btn" id="dm-send-btn">${t('chat_send')}</button>
+      <button class="btn btn-primary chat-send-btn" id="dm-send-btn" title="${t('chat_send')}" aria-label="${t('chat_send')}">${SEND_ICON_SVG}</button>
     </div>
   `;
   document.getElementById('dm-send-btn').onclick = sendDMMessage;
-  document.getElementById('dm-input').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') sendDMMessage();
-  });
   scrollChatToBottom();
 }
 
@@ -528,6 +540,11 @@ function updateNavbar() {
     navAuth.style.display = 'none';
     navUser.style.display = 'flex';
     document.getElementById('nav-username').textContent = fullName(state.user);
+    const navAvatar = document.getElementById('nav-avatar');
+    if (navAvatar) {
+      if (state.user.avatar) { navAvatar.src = state.user.avatar; navAvatar.style.display = 'inline-block'; }
+      else { navAvatar.style.display = 'none'; }
+    }
     const navAdmin = document.getElementById('nav-admin');
     navAdmin.style.display = state.user.isAdmin ? 'inline-flex' : 'none';
     if (bellMobile) bellMobile.classList.add('shown');
@@ -1123,6 +1140,17 @@ function renderProfile() {
       <div class="auth-card">
         <div class="auth-logo"><div class="logo-big">${t('profile_title')}</div></div>
 
+        <div style="display:flex;justify-content:center;margin-bottom:8px">
+          <div class="profile-avatar-wrap">
+            <div class="profile-avatar" id="pf-avatar-preview">
+              ${state.user.avatar ? `<img src="${escapeHtml(state.user.avatar)}" alt="">` : escapeHtml((state.user.firstName || '?').trim().charAt(0).toUpperCase())}
+            </div>
+            <button type="button" class="avatar-upload-btn" id="pf-avatar-btn" title="${t('avatar_change')}">📷</button>
+            <input type="file" accept="image/*" id="pf-avatar-input" style="display:none">
+          </div>
+        </div>
+        <div style="text-align:center;margin-bottom:20px" class="avatar-upload-hint">${t('avatar_hint')}</div>
+
         <div class="form-group">
           <label class="form-label">${t('field_firstname')}</label>
           <input class="form-input" id="pf-firstname" value="${escapeHtml(state.user.firstName)}">
@@ -1155,6 +1183,54 @@ function renderProfile() {
     </div>
   `;
   renderPushSection();
+  document.getElementById('pf-avatar-btn').onclick = () => document.getElementById('pf-avatar-input').click();
+  document.getElementById('pf-avatar-input').addEventListener('change', handleAvatarSelect);
+}
+
+async function handleAvatarSelect(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  if (!file.type.startsWith('image/')) { toast(t('avatar_invalid'), true); return; }
+
+  try {
+    const dataUrl = await resizeImageToDataUrl(file, 220);
+    const res = await api('/profile/avatar', { method: 'PUT', body: JSON.stringify({ avatar: dataUrl }) });
+    if (res.error) { toast(res.error, true); return; }
+    state.user.avatar = dataUrl;
+    updateNavbar();
+    renderProfile();
+    toast(t('toast_avatar_updated'));
+    // Socket ulanishi kirganda olingan foydalanuvchi rasmini keshlaydi —
+    // yangi rasm chat xabarlarida ko'rinishi uchun qayta ulaymiz.
+    if (socket) { disconnectSocket(); connectSocket(); }
+  } catch (err) {
+    console.error('avatar xato:', err);
+    toast(t('avatar_invalid'), true);
+  }
+}
+
+function resizeImageToDataUrl(file, size) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        const side = Math.min(img.width, img.height);
+        const sx = (img.width - side) / 2;
+        const sy = (img.height - side) / 2;
+        ctx.drawImage(img, sx, sy, side, side, 0, 0, size, size);
+        resolve(canvas.toDataURL('image/jpeg', 0.82));
+      };
+      img.onerror = () => reject(new Error('image load error'));
+      img.src = reader.result;
+    };
+    reader.onerror = () => reject(new Error('file read error'));
+    reader.readAsDataURL(file);
+  });
 }
 
 // ==================== PUSH BILDIRISHNOMALARI ====================

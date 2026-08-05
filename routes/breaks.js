@@ -7,6 +7,7 @@ const { getSettings, updateSettings, todayStr } = require('../lib/breakSettings'
 const { generateSlots, findSlotStart } = require('../lib/scheduleUtils');
 const { t, getLang } = require('../lib/i18nServer');
 const bus = require('../lib/bus');
+const push = require('../lib/push');
 
 function notifyChanged() {
   bus.emit('breaks:changed');
@@ -26,6 +27,7 @@ async function promoteNextQueued(today, now, breakDurationMinutes) {
     await breaks.updateAsync({ _id: next._id }, {
       $set: { status: 'active', startTime: now.toISOString(), expectedEndTime: expectedEndTime.toISOString() },
     });
+    push.sendToAdmins(next.userId, { title: 'X5 Abet', body: `${next.fullName} ушёл на обед`, url: '/' }).catch(() => {});
   }
 }
 
@@ -45,6 +47,7 @@ async function processAutoEvents() {
         await breaks.updateAsync({ _id: b._id }, {
           $set: { status: 'completed', actualEndTime: b.expectedEndTime, autoEnded: true },
         });
+        push.sendToAdmins(b.userId, { title: 'X5 Abet', body: `${b.fullName}: время обеда истекло`, url: '/' }).catch(() => {});
         await promoteNextQueued(today, now, breakDurationMinutes);
         changed = true;
       }
@@ -240,6 +243,7 @@ router.post('/start', auth, async (req, res) => {
         queuedAt: null,
         createdAt: now.toISOString(),
       });
+      push.sendToAdmins(req.user.id, { title: 'X5 Abet', body: `${name} ушёл на обед`, url: '/' }).catch(() => {});
     } else {
       doc = await breaks.insertAsync({
         userId: req.user.id,
